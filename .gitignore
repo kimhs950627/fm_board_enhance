@@ -1,6 +1,8 @@
 dist/
 node_modules/
 logs/
+.commandcode/
+.triage-queue.txt
 *.log
 .share-token
 .DS_Store

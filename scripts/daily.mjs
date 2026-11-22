@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const NOTES = path.join(ROOT, "notes");
 const LOGS = path.join(ROOT, "logs");
+const QUEUE = path.join(ROOT, ".triage-queue.txt");
 const MODEL = process.env.FM_MODEL || "deepseek/deepseek-v4.1-flash";
 const EFFORT = process.env.FM_EFFORT || "low";
 const AGENT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -20,16 +21,14 @@ function log(message) {
   fs.appendFileSync(LOG, line + "\n", "utf8");
 }
 
-function run(command, args, options = {}) {
+function run(command, args) {
   const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     shell: process.platform === "win32",
-    ...options,
   });
   return {
     ok: result.status === 0,
-    status: result.status,
     out: `${result.stdout || ""}${result.stderr || ""}`.trim(),
   };
 }
@@ -54,11 +53,14 @@ function pendingNotes() {
     const entry = path.join(dir, "entry.md");
     const polished = path.join(dir, "polished.md");
     if (!fs.existsSync(entry) || fs.existsSync(polished)) continue;
-    const data = readFrontMatter(entry);
-    if (String(data.locked).toLowerCase() === "true") continue;
-    pending.push(`notes/${name}/entry.md`);
+    if (String(readFrontMatter(entry).locked).toLowerCase() === "true") continue;
+    pending.push(name);
   }
   return pending.sort();
+}
+
+function quote(value) {
+  return `"${String(value).replace(/"/g, "")}"`;
 }
 
 function main() {
@@ -79,46 +81,44 @@ function main() {
   }
   log(`대상 ${targets.length}건: ${targets.join(", ")}`);
 
-  const prompt = [
-    "TRIAGE.md 규칙을 먼저 읽고 그대로 따라라.",
-    "",
-    "아래 각 entry.md에 대해 같은 폴더에 polished.md를 만든다.",
-    ...targets.map((t) => `- ${t}`),
-    "",
-    "요약:",
-    "- 의학적 사실·수치·용량·진단기준은 절대 변경하지 말 것. 애매하면 원문 유지.",
-    "- front matter는 복사하고 categories만 채운다(쉼표로 여러 개 가능). polished: 오늘 날짜 추가.",
-    "- 이미지 참조와 표는 그대로 둔다.",
-    "- polished.md 외 파일 생성·수정 금지, git 명령 실행 금지.",
-    "- 완료 후 처리한 파일 경로만 출력.",
-  ].join("\n");
+  fs.writeFileSync(
+    QUEUE,
+    [
+      "# 아래 폴더마다 entry.md를 읽고 같은 폴더에 polished.md를 만든다.",
+      "# 규칙: TRIAGE.md",
+      ...targets.map((name) => `notes/${name}`),
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const prompt =
+    "이 저장소 루트의 TRIAGE.md를 읽고 그 규칙대로 작업해라. " +
+    "대상 목록은 .triage-queue.txt 에 있다. " +
+    "각 대상 폴더의 entry.md를 읽고 같은 폴더에 polished.md를 만든다. " +
+    "entry.md와 다른 파일은 수정하지 말고, git 명령도 실행하지 마라. " +
+    "완료하면 처리한 경로만 한 줄씩 출력해라.";
+
+  const command =
+    `cmdc.cmd -p ${quote(prompt)}` +
+    ` --model ${quote(MODEL)} --effort ${quote(EFFORT)}` +
+    ` --permission-mode accept-edits --trust --skip-onboarding --no-auto-update` +
+    ` --output-format text`;
 
   log("에이전트 실행 중…");
-  const agent = spawnSync(
-    process.platform === "win32" ? "cmdc.cmd" : "cmdc",
-    [
-      "-p",
-      prompt,
-      "--model",
-      MODEL,
-      "--effort",
-      EFFORT,
-      "--permission-mode",
-      "accept-edits",
-      "--trust",
-      "--skip-onboarding",
-      "--no-auto-update",
-      "--output-format",
-      "text",
-    ],
-    { cwd: ROOT, encoding: "utf8", shell: process.platform === "win32", timeout: AGENT_TIMEOUT_MS },
-  );
+  const agent = spawnSync(command, {
+    cwd: ROOT,
+    encoding: "utf8",
+    shell: true,
+    timeout: AGENT_TIMEOUT_MS,
+    maxBuffer: 32 * 1024 * 1024,
+  });
 
   const agentOut = `${agent.stdout || ""}${agent.stderr || ""}`.trim();
   log(`에이전트 종료 (status=${agent.status})`);
-  if (agentOut) log(agentOut.split("\n").slice(-40).join("\n"));
+  if (agentOut) log(agentOut.split("\n").slice(-30).join("\n"));
 
-  const missing = targets.filter((t) => !fs.existsSync(path.join(ROOT, t.replace("entry.md", "polished.md"))));
+  const missing = targets.filter((name) => !fs.existsSync(path.join(NOTES, name, "polished.md")));
   if (missing.length) {
     log(`polished.md 누락 ${missing.length}건 → 커밋하지 않고 중단: ${missing.join(", ")}`);
     process.exit(1);
@@ -131,6 +131,8 @@ function main() {
   }
   log("빌드 확인 통과");
 
+  fs.rmSync(QUEUE, { force: true });
+
   run("git", ["add", "-A"]);
   const staged = run("git", ["diff", "--cached", "--name-only"]);
   if (!staged.out) {
@@ -138,16 +140,15 @@ function main() {
     return;
   }
 
-  const message = `triage: polish ${targets.length} note(s)\n\n${targets.join("\n")}`;
-  const commit = run("git", ["commit", "-m", message]);
+  const commit = run("git", ["commit", "-m", `triage: polish ${targets.length} note(s)`]);
   if (!commit.ok) {
     log(`커밋 실패: ${commit.out}`);
     process.exit(1);
   }
+  log(`${staged.out.split("\n").length}개 파일 변경`);
 
   const push = run("git", ["push"]);
   log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
-  log(staged.out.split("\n").length + "개 파일 변경");
   log("=== daily triage 끝 ===");
 }
 
