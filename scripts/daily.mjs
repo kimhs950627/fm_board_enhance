@@ -33,6 +33,18 @@ function run(command, args) {
   };
 }
 
+function runNode(script, args = []) {
+  const result = spawnSync(process.execPath, [script, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return {
+    ok: result.status === 0,
+    out: `${result.stdout || ""}${result.stderr || ""}`.trim(),
+  };
+}
+
 function readFrontMatter(file) {
   const text = fs.readFileSync(file, "utf8");
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
@@ -124,7 +136,7 @@ function main() {
     process.exit(1);
   }
 
-  const build = run(process.execPath, ["scripts/build.mjs", "--no-pdf"]);
+  const build = runNode("scripts/build.mjs", ["--no-pdf"]);
   if (!build.ok) {
     log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
     process.exit(1);
