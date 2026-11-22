@@ -57,16 +57,28 @@ function loadNotes() {
   const notes = [];
   for (const name of fs.readdirSync(NOTES)) {
     const dir = path.join(NOTES, name);
-    const file = path.join(dir, "entry.md");
-    if (!fs.existsSync(file)) continue;
-    const { data, body } = parseFrontMatter(fs.readFileSync(file, "utf8"));
+    const entryPath = path.join(dir, "entry.md");
+    if (!fs.existsSync(entryPath)) continue;
+
+    const entry = parseFrontMatter(fs.readFileSync(entryPath, "utf8"));
+    const polishedPath = path.join(dir, "polished.md");
+    const hasPolished = fs.existsSync(polishedPath);
+    const polished = hasPolished ? parseFrontMatter(fs.readFileSync(polishedPath, "utf8")) : null;
+
+    const data = { ...entry.data };
+    for (const [key, value] of Object.entries(polished?.data ?? {})) {
+      if (value) data[key] = value;
+    }
+
     notes.push({
       id: data.id || name,
       dir,
+      file: hasPolished ? "polished.md" : "entry.md",
       title: data.title || "(제목 없음)",
       categories: parseCategories(data),
       created: data.created || "",
-      body,
+      polished: hasPolished,
+      body: hasPolished ? polished.body : entry.body,
     });
   }
   return notes.sort((a, b) => a.created.localeCompare(b.created));
@@ -76,7 +88,7 @@ function markdownToHtml(note) {
   const result = spawnSync(
     "pandoc",
     [
-      "entry.md",
+      note.file,
       "--from",
       "markdown",
       "--to",

@@ -19,6 +19,39 @@ npm run build # HTML + PDF 빌드
 npm run watch # notes/ 변경 감시 → 자동 빌드
 ```
 
+### GitHub Pages (권장 입력 경로)
+
+- 편집기: `https://kimhs950627.github.io/fm_board_enhance/new.html`
+- 목록/PDF: `https://kimhs950627.github.io/fm_board_enhance/`
+- Pages의 편집기는 서버가 없으므로 **GitHub API로 직접 커밋**한다.
+  첫 저장 때 fine-grained token(권한: Contents = Read and write, 이 저장소만)을 붙여넣으면
+  브라우저 localStorage에 저장되고, 이후엔 묻지 않는다.
+- 저장 → Action이 자동 빌드 → 1~2분 뒤 Pages의 PDF가 갱신된다.
+
+### 매일 새벽 자동 정리
+
+Windows 작업 스케줄러가 04:00에 `scripts/daily.mjs` 를 실행한다.
+
+1. `git pull`
+2. `polished.md` 가 없는 노트만 추출
+3. `cmdc -p` (모델 `deepseek/deepseek-v4.1-flash`, effort `low`) 가 `TRIAGE.md` 규칙대로
+   `notes/<id>/polished.md` 작성 + `categories` 확정
+4. `polished.md` 누락/빌드 실패 시 커밋하지 않고 중단
+5. `git commit && push` → Action이 Pages 갱신
+
+- **원본 `entry.md` 는 절대 수정하지 않는다.** 다듬은 결과만 `polished.md` 로 남으므로 diff로 검수 가능.
+- `entry.md` front matter에 `locked: true` 를 넣으면 자동 정리에서 제외된다.
+- 로그: `logs/daily-YYYY-MM-DD.log`
+
+```powershell
+# 스케줄 등록 (관리자 PowerShell 불필요)
+schtasks /Create /TN "fm_board_enhance daily" /SC DAILY /ST 04:00 ^
+  /TR "node D:\board_test_recon\fm_board_enhance\scripts\daily.mjs" /F
+
+schtasks /Run /TN "fm_board_enhance daily"   # 즉시 1회 실행
+schtasks /Query /TN "fm_board_enhance daily" /V /FO LIST
+```
+
 ### 입력 앱
 
 - 굵게 `Ctrl+B`, 밑줄 `Ctrl+U`, 이미지는 **Ctrl+V 붙여넣기** 또는 드래그/선택 — **여러 장 가능**
