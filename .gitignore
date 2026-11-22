@@ -1,0 +1,6 @@
+dist/
+node_modules/
+*.log
+.share-token
+.DS_Store
+Thumbs.db

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="260" viewBox="0 0 720 260" role="img" aria-label="스타틴 관련 근육 증상 접근 흐름">
+  <style>
+    .box { fill: #ffffff; stroke: #0f5f7a; stroke-width: 1.5; rx: 8; }
+    .box-warn { fill: #fbf2eb; stroke: #b4531f; stroke-width: 1.5; rx: 8; }
+    .t { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 14px; fill: #16181d; text-anchor: middle; }
+    .s { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 12px; fill: #6b7280; text-anchor: middle; }
+    .a { stroke: #9aa3af; stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa3af"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="20" y="104" width="160" height="52"/>
+  <text class="t" x="100" y="126">스타틴 복용 후</text>
+  <text class="t" x="100" y="145">근육 증상</text>
+
+  <rect class="box" x="240" y="104" width="170" height="52"/>
+  <text class="t" x="325" y="126">CK + TSH 측정</text>
+  <text class="s" x="325" y="145">기저 CK와 비교</text>
+
+  <path class="a" d="M180,130 H236"/>
+
+  <path class="a" d="M410,118 C450,118 448,58 486,58"/>
+  <path class="a" d="M410,142 C450,142 448,202 486,202"/>
+
+  <rect class="box" x="490" y="34" width="210" height="48"/>
+  <text class="t" x="595" y="54">CK &lt; 4배</text>
+  <text class="s" x="595" y="71">유지 또는 감량 · 4주 재평가</text>
+
+  <rect class="box" x="490" y="104" width="210" height="48"/>
+  <text class="t" x="595" y="124">CK 4~10배</text>
+  <text class="s" x="595" y="141">일시 중단 → 재시도</text>
+
+  <rect class="box-warn" x="490" y="174" width="210" height="48"/>
+  <text class="t" x="595" y="194">CK &gt; 10배 또는 갈색뇨</text>
+  <text class="s" x="595" y="211">즉시 중단 · 횡문근융해 평가</text>
+</svg>

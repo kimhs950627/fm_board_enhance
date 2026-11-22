@@ -1,0 +1,14 @@
+{
+  "name": "fm-board-enhance",
+  "version": "0.2.0",
+  "private": true,
+  "description": "가정의학과 기출 개념 단권화 — 입력 앱 + HTML/PDF 빌드",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs --open",
+    "share": "node scripts/share.mjs",
+    "build": "node scripts/build.mjs",
+    "build:html": "node scripts/build.mjs --no-pdf",
+    "watch": "node scripts/build.mjs --watch"
+  }
+}
