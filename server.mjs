@@ -60,10 +60,13 @@ function listNotes() {
 
     const { data, body } = readEntryFrontMatter(fs.readFileSync(file, "utf8"));
     const images = fs.readdirSync(dir).filter((f) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f)).length;
+    const split = (value) => String(value || "").split(",").map((v) => v.trim()).filter(Boolean);
     notes.push({
       id: data.id || name,
       title: data.title || "(제목 없음)",
-      categories: parseCategories(data),
+      division: split(data.divisions || data.division || data.categories || data.category)[0] || "",
+      part: data.part || "",
+      topics: split(data.topics || data.topic),
       created: data.created || "",
       images,
       excerpt: body

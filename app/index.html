@@ -305,10 +305,13 @@ async function listRemote() {
       try {
         const file = await gh(`/contents/notes/${id}/entry.md?ref=${CFG.branch}`);
         const { data, body } = parseFrontMatter(fromBase64(file.content));
+        const split = (value) => String(value || "").split(",").map((v) => v.trim()).filter(Boolean);
         return {
           id,
           title: data.title || "(제목 없음)",
-          categories: (data.categories || data.category || "").split(",").map((c) => c.trim()).filter(Boolean),
+          division: split(data.divisions || data.division || data.categories || data.category)[0] || "",
+          part: data.part || "",
+          topics: split(data.topics || data.topic),
           created: data.created || "",
           excerpt: body
             .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
@@ -483,7 +486,9 @@ fileEl.addEventListener("change", () => {
 async function loadRecent() {
   const notes = REMOTE ? await listRemote() : await listFallback();
 
-  const cats = [...new Set(notes.flatMap((n) => n.categories || []))].sort((a, b) => a.localeCompare(b, "ko"));
+  const cats = [
+    ...new Set(notes.flatMap((n) => [n.division, ...(n.topics || [])]).filter(Boolean)),
+  ].sort((a, b) => a.localeCompare(b, "ko"));
   catsEl.innerHTML = cats.map((c) => `<option value="${c.replace(/"/g, "&quot;")}">`).join("");
 
   if (!notes.length) {
@@ -493,8 +498,12 @@ async function loadRecent() {
   recentEl.innerHTML = notes
     .slice(0, 12)
     .map((n) => {
-      const cats = (n.categories || []).length
-        ? n.categories.map((c) => `<span class="cat">${c}</span>`).join("")
+      const chips = [
+        ...(n.division ? [n.division] : []),
+        ...(n.topics || []),
+      ];
+      const cats = chips.length
+        ? chips.map((c) => `<span class="cat">${c}</span>`).join("")
         : `<span class="cat none">미분류</span>`;
       const date = (n.created || "").replace("T", " ").slice(5, 16);
       return `<li>${cats}<span class="t">${n.title}</span><span class="excerpt">${n.excerpt}</span><span class="date">${date}</span></li>`;

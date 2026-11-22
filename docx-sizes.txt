@@ -1,0 +1,50 @@
+size= 20 bold=0 count=1110
+    - 종합병원 진료 비용 많이 나올 것 같아 동네 가정의원 방문
+    - 진료 내용 판단 능력 X, 인도해 줄 사람 필요
+    - 일차의료 의사 많은 곳은 돌 전 사망률 17% 적고, 적은 곳은 7% 많다
+    - 환자의 건강 문제들을 모두 파악, 이를 해결하기 위해 다양한 보건의료 서비스 제공
+size= 20 bold=1 count=1089
+    1) 일차의료의 속성
+    최초접촉, 접근성
+    포괄성
+    지속성
+size= 26 bold=1 count=202
+    일차의료와 가정의학
+    가족 중심 진료
+    창상관리
+    외과적 합병증: 수술 후 발열
+size= 18 bold=0 count=86
+    step
+    치료 전략
+    대상 환자
+    step 1 (간헐적 천식)
+size= 16 bold=0 count=68
+    경계가 명확한 색 변화, 융기 없음
+    주근깨, 홍역, 백반증
+    1cm 이하의 단단한 융기
+    편평사마귀, 건선 초기
+size= 16 bold=1 count=34
+    반점 (Macule)
+    구진 (Papule)
+    결절 (Nodule)
+    판 (Plaque)
+size= 24 bold=1 count=17
+    임상문제 접근 방법
+    임상면담: 의사소통과 상담
+    환자 교육과 순응도
+    청소년 건강관리
+size=  0 bold=1 count=12
+    산전관리
+    산후관리
+    임신 중 고혈압
+    임신과 당뇨
+size= 18 bold=1 count=10
+    amoxicillin/clavulanate, ampicillin/sulbactam, cefotaxime, c
+    levofloxacin, moxifloxacin, gemifloxacin, gatifloxacin
+    amoxicillin/clavulanate, ampicillin/sulbactam, cefotaxime, c
+    흡인성 폐렴; 치아 위생 불량, 알코올 중독, 항생제 사용 후 발생 (혐기성 감염 의심)
+size= 21 bold=0 count=2
+    ● 다발근육통 - 류마티스성 다발근통?(PMR, Polymyalgia rheumatica)
+    ● α-glucosidase inhibitors : - bose (Acarbose, Voglibose)
+size= 21 bold=1 count=1
+    ● Thyrotoxicosis 합병증: Hypokalemia (하지마비) - 치료: β-blocker
