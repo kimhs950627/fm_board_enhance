@@ -61,6 +61,12 @@ def changed_files() -> list[str]:
 
 
 def main() -> int:
+# Windows 콘솔(cp949)에서도 한글·기호가 깨지지 않게
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     quiet = "--quiet" in sys.argv
     paths = changed_files() if "--changed" in sys.argv else args

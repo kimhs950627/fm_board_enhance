@@ -128,6 +128,12 @@ def split_section(body: list[str]) -> tuple[list[str], list[str]]:
 
 
 def main() -> int:
+# Windows 콘솔(cp949)에서도 한글·기호가 깨지지 않게
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     report = "--report" in sys.argv
     dry = "--dry-run" in sys.argv or report
     total = 0

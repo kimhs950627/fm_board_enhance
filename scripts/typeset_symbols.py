@@ -66,6 +66,12 @@ def convert(text: str) -> tuple[str, int]:
 
 
 def main() -> int:
+# Windows 콘솔(cp949)에서도 한글·기호가 깨지지 않게
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     dry = "--dry-run" in sys.argv
     total = 0
     for path in sorted(glob.glob("base/*.md")):

@@ -247,7 +247,11 @@ function main() {
     }
     log(`대상 ${targets.length}건: ${targets.join(", ")}`);
     syncBase(targets);
-    const build = runNode("scripts/build.mjs", ["--no-pdf"]);
+    // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 1개 섹션, 글자 보존 검사 통과분만).
+  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "1"]);
+  if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
+
+  const build = runNode("scripts/build.mjs", ["--no-pdf"]);
     if (!build.ok) {
       log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
       process.exit(1);
@@ -331,6 +335,10 @@ function main() {
   // 평평한 불릿에서 소단원을 끌어올린다(글자 보존 검사를 통과한 파일만).
   const hierarchy = run("python", ["-3", "scripts/normalize_hierarchy.py"]);
   if (hierarchy.ok) log(hierarchy.out.split("\n").slice(-2).join(" "));
+
+  // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 1개 섹션, 글자 보존 검사 통과분만).
+  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "1"]);
+  if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
 
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
   if (!build.ok) {

@@ -81,6 +81,12 @@ def audit(path: str) -> list[tuple[int, str, str]]:
 
 
 def main() -> int:
+# Windows 콘솔(cp949)에서도 한글·기호가 깨지지 않게
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     rows: list[tuple[int, str, str]] = []
     for path in sorted(glob.glob("base/*.md")):
         rows.extend(audit(path))
