@@ -457,6 +457,7 @@ ${entry.html}
         .join(" · ");
       return `<section class="chapter">
   <header class="chapter-head">
+    <span class="pdfmark" aria-hidden="true">⟦${String(index + 1).padStart(2, "0")}⟧</span>
     <span class="chapter-num">${String(index + 1).padStart(2, "0")}</span>
     <h1 class="chapter-title">${escapeHtml(chapterTitle(division))}</h1>
     <p class="chapter-meta">${counts}</p>
@@ -470,6 +471,7 @@ ${notes ? notesFor(notes) : ""}
   const loose = tree.loose.length
     ? `<section class="chapter">
   <header class="chapter-head">
+    <span class="pdfmark" aria-hidden="true">⟦${String(divisions.length + 1).padStart(2, "0")}⟧</span>
     <span class="chapter-num">${String(divisions.length + 1).padStart(2, "0")}</span>
     <h1 class="chapter-title">${UNCATEGORIZED}</h1>
   </header>

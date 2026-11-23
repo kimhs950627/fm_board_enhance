@@ -466,6 +466,14 @@ hr {
   border-bottom: 2px solid var(--color-text-1);
 }
 
+/* PDF 탐색용 투명 표식 — 목차 줄과 장 제목을 구분하려고 심는다(화면·인쇄에서 안 보임) */
+.pdfmark {
+  position: absolute;
+  font-size: 1px;
+  color: #ffffff; /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
+  pointer-events: none;
+}
+
 .chapter-num {
   display: block;
   font-size: var(--text-micro);
@@ -619,7 +627,15 @@ hr {
   .frontmatter.toc .front-title { margin-bottom: 3.5mm; }
 
   .chapter-head { margin-bottom: 6mm; padding-bottom: 3mm; break-after: avoid; }
-  .chapter-num { font-size: 8pt; }
+  /* PDF 탐색용 투명 표식 — 목차 줄과 장 제목을 구분하려고 심는다(화면·인쇄에서 안 보임) */
+.pdfmark {
+  position: absolute;
+  font-size: 1px;
+  color: #ffffff; /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
+  pointer-events: none;
+}
+
+.chapter-num { font-size: 8pt; }
   .chapter-title { font-size: 19pt; }
   .chapter-meta { font-size: 8.5pt; }
 
