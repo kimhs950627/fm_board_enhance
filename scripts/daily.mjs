@@ -170,7 +170,51 @@ function syncBase(targets) {
   fs.rmSync(BASE_QUEUE, { force: true });
 }
 
+function polishedUnmerged() {
+  if (!fs.existsSync(NOTES)) return [];
+  return fs
+    .readdirSync(NOTES)
+    .filter((name) => fs.existsSync(path.join(NOTES, name, "polished.md")))
+    .filter((name) => String(readFrontMatter(path.join(NOTES, name, "entry.md")).merged).toLowerCase() !== "true")
+    .sort();
+}
+
+function commitAndPush(message) {
+  run("git", ["add", "base", "notes"]);
+  const staged = run("git", ["diff", "--cached", "--name-only"]);
+  if (!staged.out) {
+    log("변경 사항 없음. 종료.");
+    return;
+  }
+  const commit = run("git", ["commit", "-m", message]);
+  if (!commit.ok) {
+    log(`커밋 실패: ${commit.out}`);
+    process.exit(1);
+  }
+  log(`${staged.out.split("\n").length}개 파일 변경`);
+  const push = run("git", ["push"]);
+  log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
+}
+
 function main() {
+  if (process.argv.includes("--merge-only")) {
+    log("=== base 병합만 실행 ===");
+    const targets = polishedUnmerged();
+    if (!targets.length) {
+      log("병합할 기록 없음. 종료.");
+      return;
+    }
+    log(`대상 ${targets.length}건: ${targets.join(", ")}`);
+    syncBase(targets);
+    const build = runNode("scripts/build.mjs", ["--no-pdf"]);
+    if (!build.ok) {
+      log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
+      process.exit(1);
+    }
+    commitAndPush(`merge: ${targets.length} note(s) into base`);
+    return;
+  }
+
   log("=== daily triage 시작 ===");
   log(`model=${MODEL} effort=${EFFORT}`);
 

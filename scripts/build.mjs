@@ -710,7 +710,7 @@ ${note.html}
     let toc = JSON.parse(addOutline(pdfPath, outlinePath, { returnToc: true }) || "[]");
     const titles = tocTitles(html);
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       const pages = tocPages(toc, titles);
       if (!pages.filter(Boolean).length) break;
       const previous = JSON.stringify(pages);

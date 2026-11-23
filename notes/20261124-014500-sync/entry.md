@@ -2,6 +2,7 @@
 id: 20261124-014500-sync
 title: 실신 — 기전과 원인 감별
 created: 2026-11-24T01:45:00
+merged: true
 division: 심혈관
 topics: 심혈관계 증상 - 실신(syncope)
 ---

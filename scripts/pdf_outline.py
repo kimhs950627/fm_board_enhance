@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 import pymupdf
@@ -31,6 +32,14 @@ def main() -> int:
     toc: list[list] = []
     cursor = 0
     last_level = 1
+
+    # 앞부속(표지·이 책 쓰는 법·목차)에는 같은 제목이 목차 줄로 들어 있다.
+    # 장 번호 줄("01", "02" …)이 처음 나오는 쪽부터 본문으로 보고 탐색을 시작한다.
+    for pno in range(doc.page_count):
+        lines = [line.strip() for line in doc[pno].get_text().split("\n")]
+        if any(re.fullmatch(r"\d{2}", line) for line in lines):
+            cursor = pno
+            break
 
     for item in items:
         title = " ".join(str(item.get("title", "")).split())

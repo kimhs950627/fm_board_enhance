@@ -612,9 +612,11 @@ hr {
 
   .front-title { font-size: 15pt; margin-bottom: 5mm; }
 
-  .toc-item { font-size: 9.5pt; margin: 1.6mm 0; }
-  .toc-item.is-level-1 { font-size: 10.5pt; margin-top: 3.4mm; }
-  .toc-item.is-level-2 { font-size: 9pt; }
+  /* 목차는 한 쪽에 들어가야 한다 — 넘치면 쪽번호가 한 쪽씩 밀린다 */
+  .toc-item { font-size: 8.6pt; margin: 0.9mm 0; }
+  .toc-item.is-level-1 { font-size: 9.4pt; margin-top: 2.1mm; }
+  .toc-item.is-level-2 { font-size: 8.2pt; }
+  .frontmatter.toc .front-title { margin-bottom: 3.5mm; }
 
   .chapter-head { margin-bottom: 6mm; padding-bottom: 3mm; break-after: avoid; }
   .chapter-num { font-size: 8pt; }
