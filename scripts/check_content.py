@@ -49,8 +49,13 @@ def check(path: str, quiet: bool) -> bool:
             print(f"  ! {path}:{lineno}: 제목 표식이 본문에 섞임 → {line.strip()[:60]}")
             return False
     lost = tokens(old) - tokens(new)
-    for marker in ("-", ">", "•", "·", "|"):
+    for marker in ("-", ">", "•", "·", "|", ":"):
         lost.pop(marker, None)
+    # 제목으로 올리면 콜론이 사라진다(예: 'Sulfonylurea:' → '### Sulfonylurea') — 같은 어간이 있으면 통과
+    for token in list(lost):
+        stem = token.rstrip(":")
+        if stem != token and stem in tokens(new):
+            lost.pop(token, None)
     if not lost:
         return True
     if not quiet:
