@@ -24,6 +24,7 @@ def main() -> int:
         return 2
 
     pdf_path, spec_path = sys.argv[1], sys.argv[2]
+    print_toc = "--print-toc" in sys.argv
     items = json.load(open(spec_path, encoding="utf-8")).get("items", [])
     doc = pymupdf.open(pdf_path)
 
@@ -61,7 +62,11 @@ def main() -> int:
     doc.save(tmp, garbage=3, deflate=True)
     doc.close()
     os.replace(tmp, pdf_path)
-    print(f"북마크 {len(toc)}개 → {os.path.basename(pdf_path)}")
+    if print_toc:
+        # build.mjs 가 목차 쪽 번호를 읽어 간다
+        print(json.dumps(toc, ensure_ascii=False))
+    else:
+        print(f"북마크 {len(toc)}개 → {os.path.basename(pdf_path)}")
     return 0
 
 

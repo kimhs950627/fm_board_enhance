@@ -316,14 +316,105 @@ hr {
 
 .cover-meta { margin-top: 22px; font-size: var(--text-small); color: var(--color-text-3); }
 
+.cover-lede {
+  margin: 20px 0 0;
+  max-width: 32ch;
+  color: var(--color-text-2);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* 앞부속: 이 책 쓰는 법 · 목차 */
+
+.frontmatter { margin: 0 0 40px; }
+
+.front-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  margin: 0 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.frontmatter p { max-width: 46ch; color: var(--color-text-2); }
+
+.toc-list { list-style: none; padding: 0; margin: 0; }
+
+.toc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0.34em 0;
+  font-size: 14px;
+}
+
+.toc-item.is-level-1 {
+  margin-top: 0.95em;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.toc-item.is-level-2 {
+  padding-left: 1.2em;
+  font-size: 13.5px;
+  color: var(--color-text-2);
+}
+
+.toc-dots {
+  flex: 1;
+  border-bottom: 1px dotted var(--color-border-strong);
+  transform: translateY(-0.22em);
+}
+
+.toc-page {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-3);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+/* 야마 표시 — 족보에 자주 나오는 항목 */
+.yama {
+  display: inline-block;
+  font-size: 0.74em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-quiet);
+  border-radius: 2px;
+  padding: 0.04em 0.34em;
+  vertical-align: 0.06em;
+}
+
 .chapter { margin-top: 56px; }
+
+.chapter-head {
+  margin: 0 0 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--color-text-1);
+}
+
+.chapter-num {
+  display: block;
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--color-accent);
+  margin-bottom: 4px;
+}
 
 .chapter-title {
   font-family: var(--font-display);
   font-size: 24px;
-  margin: 0 0 22px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--color-text-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.chapter-meta {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-3);
 }
 
 .base-block { margin: 0 0 34px; }
@@ -439,11 +530,29 @@ hr {
 
   .cover { padding: 55mm 0 0; break-after: page; }
 
+  .frontmatter {
+    break-before: page;
+    break-after: auto;
+    margin: 0;
+  }
+
+  .frontmatter.toc { break-after: page; }
+
+  .front-title { font-size: 15pt; margin-bottom: 5mm; }
+
+  .toc-item { font-size: 9.5pt; margin: 1.6mm 0; }
+  .toc-item.is-level-1 { font-size: 10.5pt; margin-top: 3.4mm; }
+  .toc-item.is-level-2 { font-size: 9pt; }
+
+  .chapter-head { margin-bottom: 6mm; padding-bottom: 3mm; break-after: avoid; }
+  .chapter-num { font-size: 8pt; }
+  .chapter-title { font-size: 19pt; }
+  .chapter-meta { font-size: 8.5pt; }
+
   .chapter-title {
-    font-size: 17pt;
-    margin: 0 0 6mm;
-    padding-bottom: 2.5mm;
-    break-after: avoid;
+    font-size: 19pt;
+    margin: 0;
+    padding: 0;
   }
 
   h2, h3, h4 { break-after: avoid; }

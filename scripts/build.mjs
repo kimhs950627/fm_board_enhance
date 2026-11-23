@@ -152,12 +152,18 @@ function markdownToHtml(note) {
   // 이미지 대체텍스트: 비어 있으면 파일명으로 채운다(접근성 검사 통과 + PDF 태그)
   return result.stdout
     .replace(/<colgroup>[\s\S]*?<\/colgroup>\s*/g, "")
+    .replace(/￥/g, '<span class="yama" aria-label="야마: 자주 출제">야마</span>')
     .replace(/<img([^>]*)>/g, (tag, attrs) => {
       if (/alt="[^"]+"/.test(attrs)) return tag;
       const src = /src="([^"]*)"/.exec(attrs)?.[1] || "이미지";
       const name = decodeURIComponent(src.split("/").pop() || src);
       return `<img${attrs.replace(/alt="[^"]*"/, "").trimEnd()} alt="${name}">`;
     });
+}
+
+// 한 페이지짜리 문서에서는 h3 를 h2 로 올려 제목 계층을 지킨다
+function shiftHeadings(html) {
+  return html.replace(/<(\/?)h([234])(\s|>)/g, (whole, close, level, rest) => `<${close}h${Number(level) - 1}${rest}`);
 }
 
 function buildPage({ title, body, css, nav = "" }) {
@@ -224,6 +230,7 @@ function collectOutline(html) {
     const level = Number(match[1]);
     const attrs = match[2];
     if (/class="cover-title"/.test(attrs)) continue;
+    if (/class="front-title"/.test(attrs)) continue; // 앞부속 제목은 목차·북마크에서 뺀다
     const title = plainText(match[3]);
     if (!title) continue;
     // '기본 정리' 자체는 목차에 넣지 않고, 그 아래 h3 를 소단원(2단계)로 올린다
@@ -237,14 +244,29 @@ function collectOutline(html) {
   return items;
 }
 
-function addOutline(pdfPath, outlinePath) {
-  const result = spawnSync("python3", [path.join(ROOT, "scripts", "pdf_outline.py"), pdfPath, outlinePath], {
-    cwd: ROOT,
-    encoding: "utf8",
-  });
+function addOutline(pdfPath, outlinePath, { returnToc = false } = {}) {
+  const args = [path.join(ROOT, "scripts", "pdf_outline.py"), pdfPath, outlinePath];
+  if (returnToc) args.push("--print-toc");
+  const result = spawnSync("python3", args, { cwd: ROOT, encoding: "utf8" });
   if (result.status !== 0) {
     const detail = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" ");
     throw new Error(`PDF 북마크 생성 실패: ${detail}`);
+  }
+  if (returnToc) return result.stdout.trim();
+  if (result.stdout.trim()) console.log(result.stdout.trim());
+  return "";
+}
+
+// 쪽번호·러닝헤드: Chrome 인쇄로는 넣을 수 없어 PDF 에 직접 그린다.
+function decoratePdf(pdfPath, outlinePath, title) {
+  const result = spawnSync(
+    "python3",
+    [path.join(ROOT, "scripts", "pdf_decorate.py"), pdfPath, outlinePath, title],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" ");
+    throw new Error(`PDF 쪽번호 처리 실패: ${detail}`);
   }
   if (result.stdout.trim()) console.log(result.stdout.trim());
 }
@@ -333,7 +355,35 @@ function chapterTitle(division) {
   return division;
 }
 
-function buildBook(tree, base, css) {
+function bookToc(html) {
+  // 인쇄 목차는 대단원(h1)과 그 아래 실제 h2 만 싣는다(북마크는 더 세밀하다).
+  const entries = [];
+  for (const match of html.matchAll(/<h([12])([^>]*)>([\s\S]*?)<\/h\1>/g)) {
+    if (/class="(cover-title|front-title)"/.test(match[2])) continue;
+    const title = plainText(match[3]);
+    if (!title || title === "기본 정리") continue;
+    entries.push({ level: Number(match[1]), title });
+  }
+  return entries;
+}
+
+// 목차 항목 순서대로 북마크(제목→쪽)에서 쪽 번호를 뽑는다. 제목이 겹쳐도 순서로 짝지어 안전하다.
+function tocPages(outline, titles) {
+  const pages = [];
+  let cursor = 0;
+  for (const title of titles) {
+    while (cursor < outline.length && outline[cursor][1] !== title) cursor += 1;
+    if (cursor < outline.length) {
+      pages.push(outline[cursor][2]);
+      cursor += 1;
+    } else {
+      pages.push("");
+    }
+  }
+  return pages;
+}
+
+function buildBook(tree, base, css, pages = null) {
   const total = tree.chapters.reduce(
     (sum, chapter) => sum + chapter.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0),
     0,
@@ -343,9 +393,19 @@ function buildBook(tree, base, css) {
 
   const cover = `<section class="cover">
   <div class="cover-kicker">가정의학과 전문의</div>
-  <h1 class="cover-title">기출 개념 단권화</h1>
+  <h1 class="cover-title">기출 개념<br>단권화</h1>
   <div class="cover-rule"></div>
-  <div class="cover-meta">기본 정리 ${base.length}단원 · 기록 ${total + looseCount}개 · ${now.getFullYear()}년 ${now.getMonth() + 1}월</div>
+  <p class="cover-lede">기본 정리 ${base.length}단원에 기록 ${total + looseCount}개를 얹은 시험장용 단권화.</p>
+  <div class="cover-meta">${now.getFullYear()}년 ${now.getMonth() + 1}월 · fm_board_enhance</div>
+</section>`;
+
+  const preface = `<section class="frontmatter">
+  <h2 class="front-title">이 책 쓰는 법</h2>
+  <p>단원마다 두 층이 있다. <strong>기본 정리</strong>는 2020~2025 단원별정리에서 옮긴 뼈대이고,
+  그 아래 <strong>기록</strong>은 시험을 보며 새로 적은 내용이다. 기록은 매일 아침 기본 정리에 흡수된다.</p>
+  <p><span class="yama" aria-label="야마: 자주 출제">야마</span> 표시는 족보에 반복해서 나오는 항목이다. 먼저 훑고,
+  남는 시간에 나머지를 훑는다.</p>
+  <p>대단원과 소단원은 PDF 북마크에 그대로 들어 있다. 쪽 번호는 아래 목차와 각 쪽 아래에 있다.</p>
 </section>`;
 
   const noteArticle = (note) => `<article class="note">
@@ -381,11 +441,21 @@ ${entry.html}
   ];
 
   const chapters = divisions
-    .map((division) => {
+    .map((division, index) => {
       const notes = noteChapter(division);
       const baseHtml = baseChapter(division);
+      const counts = [
+        baseHtml ? `기본 정리 ${baseHtml.headings.length}항목` : "",
+        notes ? `기록 ${notes.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0)}개` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
       return `<section class="chapter">
-  <h1 class="chapter-title">${escapeHtml(chapterTitle(division))}</h1>
+  <header class="chapter-head">
+    <span class="chapter-num">${String(index + 1).padStart(2, "0")}</span>
+    <h1 class="chapter-title">${escapeHtml(chapterTitle(division))}</h1>
+    <p class="chapter-meta">${counts}</p>
+  </header>
 ${baseHtml ? baseBlock(baseHtml) : ""}
 ${notes ? notesFor(notes) : ""}
 </section>`;
@@ -394,15 +464,38 @@ ${notes ? notesFor(notes) : ""}
 
   const loose = tree.loose.length
     ? `<section class="chapter">
-  <h1 class="chapter-title">${UNCATEGORIZED}</h1>
+  <header class="chapter-head">
+    <span class="chapter-num">${String(divisions.length + 1).padStart(2, "0")}</span>
+    <h1 class="chapter-title">${UNCATEGORIZED}</h1>
+  </header>
 ${tree.loose.map(noteArticle).join("\n")}
 </section>`
     : "";
 
+  const chaptersHtml = `${chapters}\n${loose}`;
+  const tocEntries = bookToc(chaptersHtml);
+  const tocRows = tocEntries
+    .map((entry, index) => {
+      const page = pages && pages[index] ? String(pages[index]) : "";
+      return `<li class="toc-item is-level-${entry.level}">
+      <span class="toc-title">${escapeHtml(entry.title)}</span>
+      <span class="toc-dots" aria-hidden="true"></span>
+      <span class="toc-page">${page}</span>
+    </li>`;
+    })
+    .join("\n");
+
+  const toc = `<section class="frontmatter toc">
+  <h2 class="front-title">목차</h2>
+  <ol class="toc-list">
+${tocRows}
+  </ol>
+</section>`;
+
   return buildPage({
     title: "가정의학과 기출 개념 단권화",
     css,
-    body: `${cover}\n${chapters}\n${loose}`,
+    body: `${cover}\n${preface}\n${toc}\n${chaptersHtml}`,
   });
 }
 
@@ -495,7 +588,7 @@ function build() {
         body: `<article class="note">
 <div class="meta"><span>기본 정리 · ${escapeHtml(entry.sources)}</span></div>
 <h1>${escapeHtml(entry.division)}</h1>
-${entry.html}
+${shiftHeadings(entry.html)}
 </article>`,
       }),
       "utf8",
@@ -548,13 +641,34 @@ ${note.html}
 
   if (chrome && (notes.length || base.length)) {
     const bookPath = path.join(HTML_DIR, "_book.html");
-    const bookHtml = buildBook(tree, base, css);
-    fs.writeFileSync(bookPath, bookHtml, "utf8");
     const pdfPath = path.join(PDF_DIR, "fm_board_all.pdf");
     const outlinePath = path.join(PDF_DIR, "_outline.json");
-    fs.writeFileSync(outlinePath, JSON.stringify({ items: collectOutline(bookHtml) }), "utf8");
-    printPdf(chrome, bookPath, pdfPath);
-    addOutline(pdfPath, outlinePath);
+
+    const tocTitles = (html) => bookToc(html).map((entry) => entry.title);
+
+    // 1차 인쇄 → 북마크 심기 → 목차 쪽번호 읽기 → 쪽번호 넣어 2차 인쇄(쪽 구성이 같아야 함)
+    const printOnce = (pages) => {
+      const html = buildBook(tree, base, css, pages);
+      fs.writeFileSync(bookPath, html, "utf8");
+      fs.writeFileSync(outlinePath, JSON.stringify({ items: collectOutline(html) }), "utf8");
+      printPdf(chrome, bookPath, pdfPath);
+      return html;
+    };
+
+    let html = printOnce(null);
+    let toc = JSON.parse(addOutline(pdfPath, outlinePath, { returnToc: true }) || "[]");
+    const titles = tocTitles(html);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const pages = tocPages(toc, titles);
+      if (!pages.filter(Boolean).length) break;
+      const previous = JSON.stringify(pages);
+      html = printOnce(pages);
+      toc = JSON.parse(addOutline(pdfPath, outlinePath, { returnToc: true }) || "[]");
+      if (JSON.stringify(tocPages(toc, titles)) === previous) break;
+    }
+
+    decoratePdf(pdfPath, outlinePath, "가정의학과 기출 개념 단권화");
     assertKoreanFont(pdfPath);
     fs.rmSync(outlinePath, { force: true });
     fs.rmSync(bookPath);
