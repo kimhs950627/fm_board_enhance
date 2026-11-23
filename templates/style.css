@@ -470,7 +470,7 @@ hr {
 .pdfmark {
   position: absolute;
   font-size: 1px;
-  color: #ffffff; /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
+  color: var(--color-paper); /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
   pointer-events: none;
 }
 
@@ -631,7 +631,7 @@ hr {
 .pdfmark {
   position: absolute;
   font-size: 1px;
-  color: #ffffff; /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
+  color: var(--color-paper); /* 흰 종이 위에서 안 보이지만 PDF 텍스트층에는 남는다 */
   pointer-events: none;
 }
 
