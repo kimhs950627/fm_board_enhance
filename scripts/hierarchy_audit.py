@@ -34,6 +34,33 @@ def sections(lines: list[str]):
         yield cur, sec
 
 
+BURY = re.compile(r"[→]|\s-\s|\s{2,}|[:：]")
+SENT = re.compile(r"\.\s")
+
+
+def buried_layers(text: str) -> int:
+    """한 줄에 몇 개의 계층이 뭉쳐 있는지 — 구분자와 문장 수로 센다."""
+    body = text.strip().lstrip("-* ").strip()
+    if len(body) < 60:
+        return 0
+    marks = len(BURY.findall(body))
+    sentences = len(SENT.findall(body))
+    return max(0, marks - 1) + max(0, sentences - 1)
+
+
+def nesting_suspects(body: list[str]) -> int:
+    """들여쓰기가 4칸 이상인데 부모가 없거나, 들여쓴 항목이 병명인 경우를 센다."""
+    count = 0
+    for i, line in enumerate(body):
+        m = re.match(r"^(\s{4,})- ", line)
+        if not m:
+            continue
+        prev = body[i - 1] if i > 0 else ""
+        if not prev.strip().startswith("-"):
+            count += 1
+    return count
+
+
 def audit(path: str) -> list[tuple[int, str, str]]:
     division = os.path.basename(path)[:-3]
     lines = open(path, encoding="utf-8").read().split("\n")
@@ -42,10 +69,12 @@ def audit(path: str) -> list[tuple[int, str, str]]:
         bullets = [l for l in body if l.strip().startswith("-")]
         nested = [l for l in body if re.match(r"^\s{2,}-", l)]
         labelled = [l for l in body if re.match(r"^\s*- [^:：]{2,30}[:：]", l)]
-        if len(bullets) < 8:
+        buried = sum(buried_layers(l) for l in bullets)
+        suspects = nesting_suspects(body)
+        if len(bullets) < 8 and buried < 6:
             continue
         flat = len(bullets) - len(nested)
-        score = flat + 2 * len(labelled)
+        score = flat + 2 * len(labelled) + 2 * buried + 3 * suspects
         if score >= 12:
             rows.append((score, division, name))
     return rows
