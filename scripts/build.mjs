@@ -211,12 +211,20 @@ function plainText(html) {
 function collectOutline(html) {
   const items = [];
   const re = /<h([123])([^>]*)>([\s\S]*?)<\/h\1>/g;
+  let inBase = false;
   for (const match of html.matchAll(re)) {
     const level = Number(match[1]);
     const attrs = match[2];
     if (/class="cover-title"/.test(attrs)) continue;
     const title = plainText(match[3]);
-    if (title) items.push({ level, title });
+    if (!title) continue;
+    // '기본 정리' 자체는 목차에 넣지 않고, 그 아래 h3 를 소단원(2단계)로 올린다
+    if (title === "기본 정리") {
+      inBase = true;
+      continue;
+    }
+    if (level <= 2) inBase = false;
+    items.push({ level: inBase ? 2 : level, title });
   }
   return items;
 }
