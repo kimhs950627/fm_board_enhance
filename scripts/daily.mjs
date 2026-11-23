@@ -17,6 +17,14 @@ const stamp = new Date().toISOString().slice(0, 10);
 fs.mkdirSync(LOGS, { recursive: true });
 const LOG = path.join(LOGS, `daily-${stamp}.log`);
 
+function notify(message) {
+  try {
+    spawnSync("discord-noti", [message], { shell: true, timeout: 20000 });
+  } catch {
+    /* 알림 실패는 작업을 막지 않는다 */
+  }
+}
+
 function log(message) {
   const line = `[${new Date().toISOString()}] ${message}`;
   console.log(line);
@@ -110,6 +118,9 @@ function syncBase(targets) {
       "#  - 같은 주제가 이미 있으면 그 소단원의 흐름에 맞춰 문장을 합치고, 중복은 하나로 정리한다.",
       "#  - 새 사실은 관련 위치(같은 주제의 불릿 사이)에 넣는다. 파일·단원 끝에 몰아 붙이지 않는다.",
       "#  - 성격이 다른 내용이 섞이면 소단원을 나눈다(STYLE.md 의 재분류 원칙).",
+      "#  - 불릿이 평평하게 늘어선 곳은 소단원(###)으로 승격한다. 병명·검사·분류가 기준이다.",
+      "#    예: '- 산후 갑상선염: 출산 후 1년 이내' 처럼 병명이 불릿 머리에 있으면 소단원으로 올리고,",
+      "#        그 뒤 설명을 그 소단원의 첫 불릿으로 옮긴다. 판단은 임상 지식으로 하되 구조만 바꾼다.",
       "#  - 문장·수치·약물명은 바꾸지 않는다. 사실을 지우지 않는다. 족보 표시(￥)도 지우지 않는다.",
       "#  - 맞는 소단원이 없을 때만 해당 위치에 '### <소단원>' 을 새로 만든다.",
       ...baseFiles.map((name) => `base/${name}`),
@@ -125,6 +136,8 @@ function syncBase(targets) {
     "이 저장소 루트의 STYLE.md 와 .base-queue.txt 를 읽고 그 지시대로 작업해라. " +
     "base/*.md 는 시험 기본 교재다. 오늘 다듬은 기록의 내용을 해당 대단원 파일에서 **이미 그 주제를 다루는 소단원 안으로 합쳐라**. " +
     "같은 사실이 있으면 문장을 다듬어 하나로 만들고, 새 사실은 그 주제의 불릿 사이에 넣는다. " +
+    "불릿이 평평하게 늘어선 곳은 병명·검사·분류 단위로 소단원(###)을 만들어 올려라. " +
+    "계층을 맞추는 데만 임상 지식을 쓰고, 문장·수치·약물명은 새로 쓰지 마라. " +
     "단원이나 파일 끝에 새 블록처럼 붙이지 마라. 성격이 다른 내용이 섞여 있으면 소단원을 나눠라. " +
     "사실·수치·약물명·족보 표시(￥)는 지우지 마라. git 명령은 실행하지 마라. " +
     "완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
@@ -163,8 +176,15 @@ function syncBase(targets) {
     log(`base 내용이 크게 줄었다 → 되돌림: ${shrunk.map((c) => c[2]).join(", ")}`);
     run("git", ["checkout", "--", "base"]);
   } else {
-    log(`base 병합: ${rows.length}개 파일`);
-    markMerged(targets);
+    const content = run("python", ["-3", "scripts/check_content.py", "--changed", "--quiet"]);
+    if (!content.ok) {
+      const bad = run("git", ["diff", "--name-only", "--", "base"]).out.split("\n").filter(Boolean);
+      log(`내용 유실 감지 → 되돌림: ${bad.join(", ")}`);
+      run("git", ["checkout", "--", "base"]);
+    } else {
+      log(`base 병합: ${rows.length}개 파일 (내용 보존 확인)`);
+      markMerged(targets);
+    }
   }
 
   fs.rmSync(BASE_QUEUE, { force: true });
@@ -194,6 +214,11 @@ function commitAndPush(message) {
   log(`${staged.out.split("\n").length}개 파일 변경`);
   const push = run("git", ["push"]);
   log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
+  notify(
+    push.ok
+      ? `fm_board_enhance 새벽 작업 완료 — 기록 ${targets ? targets.length : 0}건 병합, 사이트·PDF 갱신`
+      : `fm_board_enhance 새벽 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
+  );
 }
 
 function main() {
@@ -283,6 +308,10 @@ function main() {
 
   syncBase(targets);
 
+  // 평평한 불릿에서 소단원을 끌어올린다(글자 보존 검사를 통과한 파일만).
+  const hierarchy = run("python", ["-3", "scripts/normalize_hierarchy.py"]);
+  if (hierarchy.ok) log(hierarchy.out.split("\n").slice(-2).join(" "));
+
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
   if (!build.ok) {
     log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
@@ -308,6 +337,11 @@ function main() {
 
   const push = run("git", ["push"]);
   log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
+  notify(
+    push.ok
+      ? `fm_board_enhance 새벽 작업 완료 — 기록 ${targets ? targets.length : 0}건 병합, 사이트·PDF 갱신`
+      : `fm_board_enhance 새벽 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
+  );
   log("=== daily triage 끝 ===");
 }
 
