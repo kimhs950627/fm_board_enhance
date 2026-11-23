@@ -12,7 +12,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const BASE = path.join(ROOT, "base");
@@ -82,21 +82,13 @@ function windowsPath() {
 }
 
 function runAgent(file, sections) {
-  return new Promise((resolve) => {
-    const prompt = promptFor(file, sections).replace(/"/g, "'");
-    const command =
-      `cmdc.cmd -p "${prompt}" --model "${MODEL}" --effort "${EFFORT}"` +
-      " --permission-mode accept-edits --trust --skip-onboarding --no-auto-update --output-format text";
-    const child = spawn("cmd.exe", ["/c", `cd /d ${windowsPath()} && ${command}`], { cwd: ROOT, shell: false });
-    let out = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (out += d));
-    const timer = setTimeout(() => child.kill(), TIMEOUT);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, out: out.slice(-500) });
-    });
-  });
+  // hierarchy_llm.mjs 와 같은 방식(shell:true + cmd 문자열)으로 실행한다.
+  const prompt = promptFor(file, sections).replace(/"/g, "'");
+  const command =
+    `cmdc.cmd -p "${prompt}" --model "${MODEL}" --effort "${EFFORT}"` +
+    " --permission-mode accept-edits --trust --skip-onboarding --no-auto-update --output-format text";
+  const result = spawnSync(command, { cwd: ROOT, shell: true, encoding: "utf8", timeout: TIMEOUT, maxBuffer: 32 * 1024 * 1024 });
+  return { code: result.status, out: `${result.stdout || ""}${result.stderr || ""}`.slice(-400) };
 }
 
 async function main() {
@@ -124,11 +116,18 @@ async function main() {
     while (queue.length) {
       const [file, list] = queue.shift();
       console.log(`→ ${file} (${list.length}개 섹션)`);
+      const before = spawnSync("git", ["diff", "--stat", "--", `base/${file}`], { cwd: ROOT, encoding: "utf8" }).stdout;
       const result = await runAgent(
         file,
         list.map((row) => row.section),
       );
+      const after = spawnSync("git", ["diff", "--stat", "--", `base/${file}`], { cwd: ROOT, encoding: "utf8" }).stdout;
       console.log(`  ${file}: agent exit=${result.code}`);
+      if (before === after) {
+        // 파일이 실제로 바뀌지 않았으면 성공으로 치지 않는다
+        console.log(`  - ${file}: 변경 없음 (건너뜀)`);
+        continue;
+      }
       const check = py(["scripts/check_content.py", `base/${file}`, "--quiet"]);
       if (!check.ok) {
         spawnSync("git", ["checkout", "--", `base/${file}`], { cwd: ROOT });
