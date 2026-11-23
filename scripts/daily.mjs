@@ -72,6 +72,21 @@ function pendingNotes() {
   return pending.sort();
 }
 
+// base 에 합쳐진 기록은 책 본문에서 빼고 목록에 '기본 정리 통합' 으로 표시한다.
+function markMerged(targets) {
+  for (const name of targets) {
+    const entry = path.join(NOTES, name, "entry.md");
+    if (!fs.existsSync(entry)) continue;
+    const text = fs.readFileSync(entry, "utf8");
+    if (/^merged:\s*true$/m.test(text)) continue;
+    const stamped = /^created:.*$/m.test(text)
+      ? text.replace(/^(created:.*)$/m, "$1\nmerged: true")
+      : text.replace(/^---\n/, "---\nmerged: true\n");
+    fs.writeFileSync(entry, stamped, "utf8");
+    log(`병합 표시: notes/${name}`);
+  }
+}
+
 function quote(value) {
   return `"${String(value).replace(/"/g, "")}"`;
 }
@@ -90,8 +105,13 @@ function syncBase(targets) {
   fs.writeFileSync(
     BASE_QUEUE,
     [
-      "# base/*.md 는 시험 기본 교재다. 아래 기록에서 base 에 없는 내용만 해당 소단원에 덧붙인다.",
-      "# 규칙: 기존 줄을 지우거나 고치지 않는다(덧붙이기만). 없는 소단원이면 파일 끝에 '### <소단원>' 로 추가한다.",
+      "# base/*.md 는 시험 기본 교재다. 오늘 기록의 내용을 **이미 있는 소단원 안으로 합쳐 넣는다**.",
+      "# 규칙:",
+      "#  - 같은 주제가 이미 있으면 그 소단원의 흐름에 맞춰 문장을 합치고, 중복은 하나로 정리한다.",
+      "#  - 새 사실은 관련 위치(같은 주제의 불릿 사이)에 넣는다. 파일·단원 끝에 몰아 붙이지 않는다.",
+      "#  - 성격이 다른 내용이 섞이면 소단원을 나눈다(STYLE.md 의 재분류 원칙).",
+      "#  - 문장·수치·약물명은 바꾸지 않는다. 사실을 지우지 않는다. 족보 표시(￥)도 지우지 않는다.",
+      "#  - 맞는 소단원이 없을 때만 해당 위치에 '### <소단원>' 을 새로 만든다.",
       ...baseFiles.map((name) => `base/${name}`),
       "",
       "# 오늘 처리한 기록",
@@ -103,9 +123,11 @@ function syncBase(targets) {
 
   const prompt =
     "이 저장소 루트의 STYLE.md 와 .base-queue.txt 를 읽고 그 지시대로 작업해라. " +
-    "base/*.md 는 시험 기본 교재이고, 오늘 다듬은 기록 내용을 해당 대단원 파일의 맞는 소단원에 덧붙인다. " +
-    "기존 줄은 절대 지우거나 고치지 말고 덧붙이기만 한다. 중복되는 내용은 넣지 않는다. " +
-    "git 명령은 실행하지 마라. 완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
+    "base/*.md 는 시험 기본 교재다. 오늘 다듬은 기록의 내용을 해당 대단원 파일에서 **이미 그 주제를 다루는 소단원 안으로 합쳐라**. " +
+    "같은 사실이 있으면 문장을 다듬어 하나로 만들고, 새 사실은 그 주제의 불릿 사이에 넣는다. " +
+    "단원이나 파일 끝에 새 블록처럼 붙이지 마라. 성격이 다른 내용이 섞여 있으면 소단원을 나눠라. " +
+    "사실·수치·약물명·족보 표시(￥)는 지우지 마라. git 명령은 실행하지 마라. " +
+    "완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
 
   const command =
     `cmdc.cmd -p ${quote(prompt)}` +
@@ -113,7 +135,7 @@ function syncBase(targets) {
     ` --permission-mode accept-edits --trust --skip-onboarding --no-auto-update` +
     ` --output-format text`;
 
-  log("base 갱신 에이전트 실행 중…");
+  log("base 병합 에이전트 실행 중…");
   const agent = spawnSync(command, {
     cwd: ROOT,
     encoding: "utf8",
@@ -123,19 +145,26 @@ function syncBase(targets) {
   });
   log(`base 에이전트 종료 (status=${agent.status})`);
 
+  // 병합은 문장을 고치므로 '삭제 0' 대신 '내용이 크게 줄지 않았는지' 로 본다.
   const diff = run("git", ["diff", "--numstat", "--", "base"]);
-  const removed = diff.out
+  const rows = diff.out
     .split("\n")
     .map((line) => line.split("\t"))
-    .filter((cols) => cols.length >= 2 && Number(cols[1]) > 0);
+    .filter((cols) => cols.length >= 3);
+  const shrunk = rows.filter((cols) => {
+    const removed = Number(cols[1]);
+    const added = Number(cols[0]);
+    return removed > 0 && added < removed * 0.6;
+  });
 
   if (!diff.out.trim()) {
     log("base 변경 없음");
-  } else if (removed.length) {
-    log(`base 에서 줄이 지워짐 → 되돌림: ${removed.map((c) => c[2]).join(", ")}`);
+  } else if (shrunk.length) {
+    log(`base 내용이 크게 줄었다 → 되돌림: ${shrunk.map((c) => c[2]).join(", ")}`);
     run("git", ["checkout", "--", "base"]);
   } else {
-    log(`base 갱신: ${diff.out.split("\n").length}개 파일 (추가만)`);
+    log(`base 병합: ${rows.length}개 파일`);
+    markMerged(targets);
   }
 
   fs.rmSync(BASE_QUEUE, { force: true });

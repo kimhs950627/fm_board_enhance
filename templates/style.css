@@ -287,6 +287,78 @@ hr {
 
 .doc-list .links a:hover { color: var(--color-accent); }
 
+.chip {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-quiet);
+  border-radius: 2px;
+  padding: 0.1em 0.4em;
+  margin-right: 8px;
+}
+
+/* 탭: 기본 교재 / 추가 내용 */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 22px;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-text-3);
+  cursor: pointer;
+}
+
+.tab:hover { color: var(--color-text-1); }
+
+.tab[aria-selected="true"] {
+  color: var(--color-text-1);
+  border-bottom-color: var(--color-accent);
+}
+
+.tab-count {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--color-accent-strong);
+}
+
+.tab-panel { outline: none; }
+
+.panel-lede {
+  margin: 0 0 18px;
+  max-width: 62ch;
+  font-size: 14px;
+  color: var(--color-text-2);
+}
+
+.doc-list.notes li { display: block; padding: 16px 2px; }
+
+.note-head { display: flex; align-items: baseline; gap: 12px; }
+
+.note-head .title { flex: 1; }
+
+.note-head .links { margin-left: auto; }
+
+.note-meta { margin-top: 4px; font-size: 12.5px; color: var(--color-text-3); }
+
+.note-excerpt {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  font-size: 14px;
+  color: var(--color-text-2);
+}
+
 .empty { padding: 40px 0; color: var(--color-text-3); font-size: 14px; }
 
 .underline { text-decoration: underline; text-underline-offset: 2px; }
@@ -523,7 +595,7 @@ hr {
     background: none;
   }
 
-  .topnav, .noprint { display: none !important; }
+  .topnav, .noprint, .no-print, .tabs { display: none !important; }
 
   /* 대단원은 새 쪽에서 시작한다 */
   .chapter { margin-top: 0; break-before: page; }

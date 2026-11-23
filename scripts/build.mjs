@@ -95,6 +95,7 @@ function loadNotes() {
       topics,
       created: data.created || "",
       polished: hasPolished,
+      merged: String(data.merged || "").toLowerCase() === "true",
       body: hasPolished ? polished.body : entry.body,
     });
   }
@@ -420,8 +421,10 @@ ${note.html}
         const topics = part.topics
           .map((group) => {
             const heading = group.topic ? `<h2 class="topic-title">${escapeHtml(group.topic)}</h2>` : "";
+            const live = group.notes.filter((note) => !note.merged);
+            if (!live.length) return heading;
             return `${heading}
-${group.notes.map(noteArticle).join("\n")}`;
+${live.map(noteArticle).join("\n")}`;
           })
           .join("\n");
         return `${partHeading}
@@ -446,7 +449,9 @@ ${entry.html}
       const baseHtml = baseChapter(division);
       const counts = [
         baseHtml ? `기본 정리 ${baseHtml.headings.length}항목` : "",
-        notes ? `기록 ${notes.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0)}개` : "",
+        notes
+          ? `기록 ${notes.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.filter((note) => !note.merged).length, 0), 0)}개`
+          : "",
       ]
         .filter(Boolean)
         .join(" · ");
@@ -500,62 +505,108 @@ ${tocRows}
 }
 
 function buildIndex(tree, base, css) {
-  const count = (chapter) =>
-    chapter.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0);
-  const total = tree.chapters.reduce((sum, c) => sum + count(c), 0) + tree.loose.length;
+  const allNotes = [
+    ...tree.chapters.flatMap((c) => c.parts.flatMap((p) => p.topics.flatMap((t) => t.notes))),
+    ...tree.loose,
+  ];
+  const live = allNotes
+    .filter((note) => !note.merged)
+    .sort((a, b) => String(b.created).localeCompare(String(a.created)));
 
-  const linkFor = (note) =>
-    `<li><a class="title" href="html/${encodeURIComponent(note.id)}.html">${escapeHtml(note.title)}</a>
-      <span class="links"><a href="html/${encodeURIComponent(note.id)}.html">HTML</a></span></li>`;
+  const excerptOf = (note) =>
+    escapeHtml(
+      String(note.body || "")
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+        .replace(/[#>*_`\[\]{}]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 110),
+    );
 
-  const sections = tree.chapters
-    .map((chapter) => {
-      const parts = chapter.parts
-        .map((part) => {
-          const partHeading = part.part ? `<h3 class="part-head">${escapeHtml(part.part)}</h3>` : "";
-          const topics = part.topics
-            .map(
-              (group) => `${group.topic ? `<h3 class="topic-head">${escapeHtml(group.topic)}</h3>` : ""}
-        <ul class="doc-list">${group.notes.map(linkFor).join("")}</ul>`,
-            )
-            .join("\n");
-          return `${partHeading}\n${topics}`;
-        })
-        .join("\n");
+  const baseRows = base
+    .map(
+      (entry) => `<li>
+      <a class="title" href="base/${encodeURIComponent(entry.slug)}.html">${escapeHtml(entry.division)}</a>
+      <span class="links"><span>${entry.headings.length}개 항목</span><a href="base/${encodeURIComponent(entry.slug)}.html">HTML</a></span>
+    </li>`,
+    )
+    .join("\n");
 
-      return `<section class="cat-block">
-  <h2 class="cat-head">${escapeHtml(chapter.division)}<span class="count">${count(chapter)}</span></h2>
-${parts}
-</section>`;
+  const extraRows = live
+    .map((note) => {
+      const meta = [
+        note.division || "미분류",
+        ...(note.topics || []),
+        String(note.created || "").replace("T", " ").slice(0, 16),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `<li class="note-row">
+      <div class="note-head">
+        <a class="title" href="html/${encodeURIComponent(note.id)}.html">${escapeHtml(note.title)}</a>
+        <span class="links"><a href="html/${encodeURIComponent(note.id)}.html">HTML</a></span>
+      </div>
+      <div class="note-meta">${escapeHtml(meta)}</div>
+      <p class="note-excerpt">${excerptOf(note)}</p>
+    </li>`;
     })
     .join("\n");
 
-  const loose = tree.loose.length
-    ? `<section class="cat-block">
-  <h2 class="cat-head">${UNCATEGORIZED}<span class="count">${tree.loose.length}</span></h2>
-  <ul class="doc-list">${tree.loose.map(linkFor).join("")}</ul>
-</section>`
-    : "";
-
-  const baseList = base.length
-    ? `<section class="cat-block">
-  <h2 class="cat-head">기본 교재<span class="count">${base.length}</span></h2>
-  <ul class="doc-list">${base
-    .map(
-      (entry) => `<li><a class="title" href="base/${encodeURIComponent(entry.slug)}.html">${escapeHtml(entry.division)}</a>
-      <span class="links"><span>${entry.headings.length}개 항목</span> <a href="base/${encodeURIComponent(entry.slug)}.html">HTML</a></span></li>`,
-    )
-    .join("")}</ul>
-</section>`
-    : "";
-
   const built = new Date();
   const builtLabel = `${built.getFullYear()}년 ${built.getMonth() + 1}월 ${built.getDate()}일 ${String(built.getHours()).padStart(2, "0")}:${String(built.getMinutes()).padStart(2, "0")} 빌드`;
+
   const body = `<h1>가정의학과 기출 개념 단권화</h1>
-<p class="lede">기본 정리 ${base.length}단원, 기록 ${total}개. 빌드는 ${builtLabel}.</p>
-<p class="lede"><a href="new.html">새 기록 쓰기</a> · <a href="pdf/fm_board_all.pdf">전체 PDF 열기</a></p>
-${baseList}
-${total ? sections + loose : `<p class="empty">아직 기록이 없습니다. 위의 ‘새 기록 쓰기’로 첫 기록을 남기면 이 목록에 쌓입니다.</p>`}`;
+<p class="lede">기본 교재 ${base.length}단원 · 아직 합치지 않은 기록 ${live.length}건. 빌드는 ${builtLabel}.</p>
+<p class="lede no-print"><a href="new.html">새 기록 쓰기</a> · <a href="pdf/fm_board_all.pdf">전체 PDF 열기</a></p>
+
+<div class="tabs" role="tablist" aria-label="보기 선택">
+  <button class="tab" role="tab" id="tab-base" aria-controls="panel-base" aria-selected="true">기본 교재<span class="tab-count">${base.length}</span></button>
+  <button class="tab" role="tab" id="tab-extra" aria-controls="panel-extra" aria-selected="false">추가 내용<span class="tab-count">${live.length}</span></button>
+</div>
+
+<section class="tab-panel" id="panel-base" role="tabpanel" aria-labelledby="tab-base" tabindex="0">
+  <p class="panel-lede">단원별 기본 정리. 밤사이 새 기록이 여기에 합쳐진다.</p>
+  <ul class="doc-list">
+${baseRows}
+  </ul>
+</section>
+
+<section class="tab-panel" id="panel-extra" role="tabpanel" aria-labelledby="tab-extra" tabindex="0" hidden>
+${
+  live.length
+    ? `<p class="panel-lede">아직 기본 교재에 합쳐지지 않은 기록. 새벽 작업이 끝나면 이 탭은 비고, 내용은 기본 교재로 옮겨진다.</p>
+  <ul class="doc-list notes">
+${extraRows}
+  </ul>`
+    : `<p class="empty">지금은 새로 적은 내용이 없습니다. 적은 내용은 모두 기본 교재에 합쳐졌습니다.</p>`
+}
+</section>
+
+<script>
+(function () {
+  const tabs = [...document.querySelectorAll(".tab")];
+  const panels = tabs.map((tab) => document.getElementById(tab.getAttribute("aria-controls")));
+  function select(index, focus) {
+    tabs.forEach((tab, i) => {
+      const on = i === index;
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+      panels[i].hidden = !on;
+    });
+    history.replaceState(null, "", index === 0 ? "#base" : "#extra");
+    if (focus) tabs[index].focus();
+  }
+  tabs.forEach((tab, i) => {
+    tab.addEventListener("click", () => select(i));
+    tab.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      select((i + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length, true);
+    });
+  });
+  select(location.hash === "#extra" ? 1 : 0);
+})();
+</script>`;
 
   return buildPage({ title: "가정의학과 기출 개념 단권화", body, css });
 }
