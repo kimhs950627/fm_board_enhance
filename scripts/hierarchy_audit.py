@@ -67,6 +67,7 @@ def audit(path: str) -> list[tuple[int, str, str]]:
     rows = []
     for name, body in sections(lines):
         bullets = [l for l in body if l.strip().startswith("-")]
+        thin = 1 if len(bullets) <= 1 else 0
         nested = [l for l in body if re.match(r"^\s{2,}-", l)]
         labelled = [l for l in body if re.match(r"^\s*- [^:：]{2,30}[:：]", l)]
         buried = sum(buried_layers(l) for l in bullets)
@@ -74,7 +75,7 @@ def audit(path: str) -> list[tuple[int, str, str]]:
         if len(bullets) < 8 and buried < 6:
             continue
         flat = len(bullets) - len(nested)
-        score = flat + 2 * len(labelled) + 2 * buried + 3 * suspects
+        score = flat + 2 * len(labelled) + 2 * buried + 3 * suspects + thin
         if score >= 12:
             rows.append((score, division, name))
     return rows
@@ -96,6 +97,7 @@ def main() -> int:
         print(rows[0][1] if rows else "")
         return 0
 
+    thin_count = sum(1 for start in [0])  # 자리표시자
     lines = ["# 계층 점검 — 아직 평평한 소단원", ""]
     if not rows:
         lines.append("남은 항목이 없다.")
