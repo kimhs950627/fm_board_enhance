@@ -112,7 +112,9 @@ function loadBase() {
     .readdirSync(BASE)
     .filter((name) => name.endsWith(".md"))
     .map((name) => {
-      const { data, body } = parseFrontMatter(fs.readFileSync(path.join(BASE, name), "utf8"));
+      const { data, body: rawBody } = parseFrontMatter(fs.readFileSync(path.join(BASE, name), "utf8"));
+      // 제목 앞에 빈 줄이 없으면 pandoc 이 목록의 일부로 삼켜 '###' 가 본문에 새어 나온다
+      const body = rawBody.replace(/([^\n])\n(#{2,3} )/g, "$1\n\n$2");
       return {
         division: data.division || name.replace(/\.md$/, ""),
         sources: data.sources || "",

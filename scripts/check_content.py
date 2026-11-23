@@ -44,6 +44,10 @@ def check(path: str, quiet: bool) -> bool:
     if not old:
         return True
     new = open(path, encoding="utf-8").read()
+    for lineno, line in enumerate(new.split("\n"), 1):
+        if "###" in line and not line.lstrip().startswith("#"):
+            print(f"  ! {path}:{lineno}: 제목 표식이 본문에 섞임 → {line.strip()[:60]}")
+            return False
     lost = tokens(old) - tokens(new)
     for marker in ("-", ">", "•", "·", "|"):
         lost.pop(marker, None)
