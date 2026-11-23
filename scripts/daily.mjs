@@ -308,6 +308,10 @@ function main() {
 
   syncBase(targets);
 
+  // ASCII 기호를 실제 조판 기호로 (-> →, ^2 ², >= ≥ …)
+  const symbols = run("python", ["-3", "scripts/typeset_symbols.py"]);
+  if (symbols.ok) log(symbols.out.split("\n").slice(-1).join(""));
+
   // 평평한 불릿에서 소단원을 끌어올린다(글자 보존 검사를 통과한 파일만).
   const hierarchy = run("python", ["-3", "scripts/normalize_hierarchy.py"]);
   if (hierarchy.ok) log(hierarchy.out.split("\n").slice(-2).join(" "));
