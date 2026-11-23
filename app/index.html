@@ -516,6 +516,15 @@ function insertText(text) {
   });
 }
 
+function htmlToText(html) {
+  if (!html) return "";
+  const box = document.createElement("div");
+  box.innerHTML = html;
+  box.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+  box.querySelectorAll("p, div, li, tr, h1, h2, h3, h4").forEach((el) => el.append("\n"));
+  return box.textContent.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 editor.addEventListener("paste", (event) => {
   const items = Array.from(event.clipboardData?.items || []);
   const imageItem = items.find((item) => item.type.startsWith("image/"));
@@ -527,11 +536,12 @@ editor.addEventListener("paste", (event) => {
     reader.readAsDataURL(file);
     return;
   }
-  const text = event.clipboardData?.getData("text/plain");
-  if (text) {
-    event.preventDefault();
-    insertText(text);
-  }
+  // 앱에 따라 text/plain 이 비어 있고 text/html 만 오는 경우가 있다 → html 도 받아 텍스트로 바꾼다
+  const plain = event.clipboardData?.getData("text/plain") || "";
+  const text = plain.trim() ? plain : htmlToText(event.clipboardData?.getData("text/html") || "");
+  if (!text.trim()) return; // 둘 다 비면 기본 붙여넣기에 맡긴다
+  event.preventDefault();
+  insertText(text);
 });
 
 editor.addEventListener("dragover", (event) => {
@@ -597,9 +607,17 @@ function deriveTitle(markdown) {
 }
 
 async function save() {
-  const markdown = serialize();
+  let markdown = serialize();
   if (!markdown.trim()) {
-    setStatus("내용이 없습니다.", "err");
+    // 붙여넣기가 기본 동작으로 들어간 경우 등 — 편집기의 순수 텍스트로 한 번 더 시도한다
+    markdown = (editor.innerText || "")
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  if (!markdown.trim()) {
+    setStatus("본문이 비어 있습니다. 편집기를 한 번 클릭한 뒤 다시 붙여넣어 주세요.", "err");
     return;
   }
   const button = document.getElementById("save");
