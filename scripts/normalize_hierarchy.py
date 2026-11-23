@@ -49,13 +49,13 @@ def is_label(line: str) -> tuple[bool, str]:
 
 
 def promote_numbered(lines: list[str]) -> tuple[list[str], int]:
-    """'1) 진단' 처럼 번호만 붙은 줄을 '### 진단' 으로 올린다(자식 불릿은 들여쓰지 않아도 됨)."""
+    """'1) 진단'·'① 공복혈당 …' 처럼 번호만 붙은 줄을 '### 제목' 으로 올린다."""
     out: list[str] = []
     promoted = 0
     i = 0
     while i < len(lines):
         line = lines[i]
-        m = re.match(r"^(\d+)\)\s+(\S.*)$", line)
+        m = re.match(r"^([\d]+[)\.]|[①②③④⑤⑥⑦⑧⑨⑩])\s*(\S.*)$", line)
         if m and any(l.startswith("### ") for l in out):
             end = i + 1
             body = 0
@@ -68,7 +68,8 @@ def promote_numbered(lines: list[str]) -> tuple[list[str], int]:
                 end += 1
             if body >= 2:
                 out.append("")
-                out.append(f"### {m.group(2).strip()}")
+                # 번호는 내용의 일부이므로 제목에 그대로 둔다(글자 보존)
+                out.append(f"### {line.strip()}")
                 out.append("")
                 out.extend(lines[i + 1:end])
                 promoted += 1

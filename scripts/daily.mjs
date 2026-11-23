@@ -247,8 +247,8 @@ function main() {
     }
     log(`대상 ${targets.length}건: ${targets.join(", ")}`);
     syncBase(targets);
-    // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 1개 섹션, 글자 보존 검사 통과분만).
-  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "1"]);
+    // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 3개 섹션, 글자 보존 검사 통과분만).
+  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "3"]);
   if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
 
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
@@ -336,8 +336,8 @@ function main() {
   const hierarchy = run("python", ["-3", "scripts/normalize_hierarchy.py"]);
   if (hierarchy.ok) log(hierarchy.out.split("\n").slice(-2).join(" "));
 
-  // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 1개 섹션, 글자 보존 검사 통과분만).
-  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "1"]);
+  // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 3개 섹션, 글자 보존 검사 통과분만).
+  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "3"]);
   if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
 
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
