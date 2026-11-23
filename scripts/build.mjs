@@ -165,6 +165,21 @@ function printPdf(chrome, htmlPath, pdfPath) {
     const detail = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" ");
     throw new Error(`PDF 생성 실패: ${path.basename(pdfPath)} ${detail}`);
   }
+  assertKoreanFont(pdfPath);
+}
+
+// 한글 글꼴이 PDF에 실제로 박혔는지 확인한다. CI에 한글 폰트가 없으면 Chrome이
+// 라틴 폰트로만 찍어 한글이 전부 빈 네모가 되는데, 빌드는 성공한 것처럼 보인다.
+function assertKoreanFont(pdfPath) {
+  const raw = fs.readFileSync(pdfPath, "latin1");
+  const names = [...raw.matchAll(/\/BaseFont\s*\/([#\w+.,\-]+)/g)].map((m) => m[1]);
+  const hasKorean = names.some((name) => /noto|cjk|nanum|gothic|batang|malgun|pretendard/i.test(name));
+  if (!hasKorean) {
+    throw new Error(
+      `PDF에 한글 글꼴이 없습니다 (삽입된 글꼴: ${names.join(", ") || "없음"}). ` +
+        `빌드 환경에 한글 글꼴(예: fonts-noto-cjk)을 설치하세요.`,
+    );
+  }
 }
 
 function topicRank(taxonomy, division, part, topic) {
