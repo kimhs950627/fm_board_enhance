@@ -7,14 +7,24 @@
 ## 흐름
 
 ```
-입력 앱(브라우저)  →  notes/<id>/entry.md + 이미지  →  카테고리 정리  →  dist/pdf/fm_board_all.pdf
+단원별정리 docx  →  scripts/build_base.py  →  base/<대단원>.md   (기본 교재)
+입력 앱(브라우저)  →  notes/<id>/entry.md    →  매일 LLM이 base에 덧붙임
+                                              →  dist/ (HTML + PDF)
 ```
+
+- **base/** — `fm 보드시험 단원별정리/*.docx` 를 옮긴 기본 교재. 대단원마다 파일 하나.
+  `python3 scripts/build_base.py` 로 다시 뽑으며, 이미 있는 소제목은 새로 덮지 않는다(덧붙이기 전용).
+  `base/categories.json` 은 입력 앱의 대단원·소단원 선택지가 된다.
+- **notes/** — 사용자가 쓰는 기록. base 와 별개로 남는다.
+- **매일 04:00** — git pull → `polished.md` 생성 → LLM이 오늘 기록을 base 의 맞는 소단원에 덧붙임
+  (기존 줄이 하나라도 지워지면 자동으로 되돌린다) → 빌드 → 커밋·푸시.
 
 ## 사용법
 
 ```powershell
 npm start     # 입력 앱 열기 (http://127.0.0.1:4173)
 npm run share # 같은/다른 네트워크의 휴대폰·랩탑에서 접속 (Cloudflare 터널)
+npm run base  # docx → base/*.md 다시 뽑기 (기존 소제목은 건드리지 않음)
 npm run build # HTML + PDF 빌드
 npm run watch # notes/ 변경 감시 → 자동 빌드
 ```
@@ -55,7 +65,8 @@ schtasks /Query /TN "fm_board_enhance daily" /V /FO LIST
 ### 입력 앱
 
 - 굵게 `Ctrl+B`, 밑줄 `Ctrl+U`, 이미지는 **Ctrl+V 붙여넣기** 또는 드래그/선택 — **여러 장 가능**
-- 카테고리는 쉼표로 여러 개: `이상지질혈증, 심혈관`. 비워두면 `미분류`로 저장되고, 나중에 정리하면 된다
+- 카테고리: **대단원 → 소단원** 두 상자에서 고른다. 소단원 목록은 docx 에서 뽑은 것이고,
+  없으면 각 대단원의 **기타(직접 입력)** 으로 새 이름을 넣는다
 - `Ctrl+Enter` 저장
 - 저장 위치: `notes/<timestamp>/entry.md` (이미지는 같은 폴더에 `img-N.png`)
 

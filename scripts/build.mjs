@@ -6,9 +6,11 @@ import { pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const NOTES = path.join(ROOT, "notes");
+const BASE = path.join(ROOT, "base");
 const TEMPLATES = path.join(ROOT, "templates");
 const DIST = path.join(ROOT, "dist");
 const HTML_DIR = path.join(DIST, "html");
+const BASE_HTML_DIR = path.join(DIST, "base");
 const PDF_DIR = path.join(DIST, "pdf");
 const TAXONOMY_FILE = path.join(ROOT, "taxonomy.json");
 const UNCATEGORIZED = "미분류";
@@ -99,6 +101,32 @@ function loadNotes() {
   return notes.sort((a, b) => a.created.localeCompare(b.created));
 }
 
+// base: docx 를 옮긴 '기본 교재'. 기록(note)과 별개로 매일 갱신된다.
+function loadBase() {
+  if (!fs.existsSync(BASE)) return [];
+  const taxonomy = loadTaxonomy();
+  const order = taxonomy ? Object.keys(taxonomy) : [];
+  const rank = (name) => (order.indexOf(name) === -1 ? Number.MAX_SAFE_INTEGER : order.indexOf(name));
+  return fs
+    .readdirSync(BASE)
+    .filter((name) => name.endsWith(".md"))
+    .map((name) => {
+      const { data, body } = parseFrontMatter(fs.readFileSync(path.join(BASE, name), "utf8"));
+      return {
+        division: data.division || name.replace(/\.md$/, ""),
+        sources: data.sources || "",
+        file: name,
+        slug: name.replace(/\.md$/, ""),
+        headings: [...body.matchAll(/^### (.+)$/gm)].map((m) => m[1].trim()),
+        body,
+      };
+    })
+    .sort((a, b) => {
+      const diff = rank(a.division) - rank(b.division);
+      return diff !== 0 ? diff : a.division.localeCompare(b.division, "ko");
+    });
+}
+
 function markdownToHtml(note) {
   const result = spawnSync(
     "pandoc",
@@ -165,7 +193,44 @@ function printPdf(chrome, htmlPath, pdfPath) {
     const detail = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" ");
     throw new Error(`PDF 생성 실패: ${path.basename(pdfPath)} ${detail}`);
   }
-  assertKoreanFont(pdfPath);
+}
+
+// 대단원(h1)·소단원(h2)·소제목(h3)을 PDF 북마크로 심는다.
+function plainText(html) {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectOutline(html) {
+  const items = [];
+  const re = /<h([123])([^>]*)>([\s\S]*?)<\/h\1>/g;
+  for (const match of html.matchAll(re)) {
+    const level = Number(match[1]);
+    const attrs = match[2];
+    if (/class="cover-title"/.test(attrs)) continue;
+    const title = plainText(match[3]);
+    if (title) items.push({ level, title });
+  }
+  return items;
+}
+
+function addOutline(pdfPath, outlinePath) {
+  const result = spawnSync("python3", [path.join(ROOT, "scripts", "pdf_outline.py"), pdfPath, outlinePath], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" ");
+    throw new Error(`PDF 북마크 생성 실패: ${detail}`);
+  }
+  if (result.stdout.trim()) console.log(result.stdout.trim());
 }
 
 // 한글 글꼴이 PDF에 실제로 박혔는지 확인한다. CI에 한글 폰트가 없으면 Chrome이
@@ -182,8 +247,7 @@ function assertKoreanFont(pdfPath) {
   }
 }
 
-function topicRank(taxonomy, division, part, topic) {
-  const list = taxonomy?.[division]?.[part] ?? [];
+function topicRank(taxonomy, division, part, topic) {  const list = taxonomy?.[division]?.[part] ?? [];
   const index = list.indexOf(topic);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
@@ -253,7 +317,7 @@ function chapterTitle(division) {
   return division;
 }
 
-function buildBook(tree, css) {
+function buildBook(tree, base, css) {
   const total = tree.chapters.reduce(
     (sum, chapter) => sum + chapter.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0),
     0,
@@ -265,7 +329,7 @@ function buildBook(tree, css) {
   <div class="cover-kicker">가정의학과 전문의</div>
   <h1 class="cover-title">기출 개념 단권화</h1>
   <div class="cover-rule"></div>
-  <div class="cover-meta">${total + looseCount}개 기록 · ${tree.chapters.length}개 대단원 · ${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}</div>
+  <div class="cover-meta">기본 정리 ${base.length}단원 · 기록 ${total + looseCount}개 · ${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}</div>
 </section>`;
 
   const noteArticle = (note) => `<article class="note">
@@ -273,28 +337,41 @@ function buildBook(tree, css) {
 ${note.html}
 </article>`;
 
-  const chapters = tree.chapters
-    .map((chapter) => {
-      const body = chapter.parts
-        .map((part) => {
-          const partHeading = part.part ? `<h2 class="part-title">${escapeHtml(part.part)}</h2>` : "";
-          const topics = part.topics
-            .map((group) => {
-              const heading = group.topic
-                ? `<h2 class="topic-title">${escapeHtml(group.topic)}</h2>`
-                : "";
-              return `${heading}
+  const notesFor = (chapter) =>
+    chapter.parts
+      .map((part) => {
+        const partHeading = part.part ? `<h2 class="part-title">${escapeHtml(part.part)}</h2>` : "";
+        const topics = part.topics
+          .map((group) => {
+            const heading = group.topic ? `<h2 class="topic-title">${escapeHtml(group.topic)}</h2>` : "";
+            return `${heading}
 ${group.notes.map(noteArticle).join("\n")}`;
-            })
-            .join("\n");
-          return `${partHeading}
+          })
+          .join("\n");
+        return `${partHeading}
 ${topics}`;
-        })
-        .join("\n");
+      })
+      .join("\n");
 
+  const baseBlock = (entry) => `<section class="base-block">
+  <h2 class="part-title">기본 정리</h2>
+${entry.html}
+</section>`;
+
+  const noteChapter = (division) => tree.chapters.find((c) => c.division === division);
+  const baseChapter = (division) => base.find((b) => b.division === division);
+  const divisions = [
+    ...new Set([...base.map((b) => b.division), ...tree.chapters.map((c) => c.division)]),
+  ];
+
+  const chapters = divisions
+    .map((division) => {
+      const notes = noteChapter(division);
+      const baseHtml = baseChapter(division);
       return `<section class="chapter">
-  <h1 class="chapter-title">${escapeHtml(chapterTitle(chapter.division))}</h1>
-${body}
+  <h1 class="chapter-title">${escapeHtml(chapterTitle(division))}</h1>
+${baseHtml ? baseBlock(baseHtml) : ""}
+${notes ? notesFor(notes) : ""}
 </section>`;
     })
     .join("\n");
@@ -313,7 +390,7 @@ ${tree.loose.map(noteArticle).join("\n")}
   });
 }
 
-function buildIndex(tree, css) {
+function buildIndex(tree, base, css) {
   const count = (chapter) =>
     chapter.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.length, 0), 0);
   const total = tree.chapters.reduce((sum, c) => sum + count(c), 0) + tree.loose.length;
@@ -351,9 +428,22 @@ ${parts}
 </section>`
     : "";
 
+  const baseList = base.length
+    ? `<section class="cat-block">
+  <h2 class="cat-head">기본 교재<span class="count">${base.length}</span></h2>
+  <ul class="doc-list">${base
+    .map(
+      (entry) => `<li><a class="title" href="base/${encodeURIComponent(entry.slug)}.html">${escapeHtml(entry.division)}</a>
+      <span class="links"><span>${entry.headings.length}개 항목</span> <a href="base/${encodeURIComponent(entry.slug)}.html">HTML</a></span></li>`,
+    )
+    .join("")}</ul>
+</section>`
+    : "";
+
   const body = `<h1>가정의학과 기출 개념 단권화</h1>
 <p class="lede">${total}개 기록 · ${tree.chapters.length}개 대단원 · 빌드 ${new Date().toLocaleString("ko-KR")}</p>
 <p class="lede"><a href="new.html">새 기록 쓰기</a> · <a href="pdf/fm_board_all.pdf">전체 PDF 열기</a></p>
+${baseList}
 ${total ? sections + loose : `<p class="empty">아직 기록이 없습니다.</p>`}`;
 
   return buildPage({ title: "가정의학과 기출 개념 단권화", body, css });
@@ -364,14 +454,34 @@ function build() {
   const css = fs.readFileSync(path.join(TEMPLATES, "style.css"), "utf8");
   const taxonomy = loadTaxonomy();
   const notes = loadNotes();
+  const base = loadBase();
 
   fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(HTML_DIR, { recursive: true });
+  fs.mkdirSync(BASE_HTML_DIR, { recursive: true });
   if (!NO_PDF) fs.mkdirSync(PDF_DIR, { recursive: true });
 
   const chrome = NO_PDF ? null : findChrome();
   if (!NO_PDF && !chrome) {
     console.warn("! Chrome/Edge를 찾지 못했습니다. HTML만 생성합니다 (CHROME_PATH 지정 가능).");
+  }
+
+  for (const entry of base) {
+    entry.html = markdownToHtml({ file: entry.file, dir: BASE });
+    fs.writeFileSync(
+      path.join(BASE_HTML_DIR, `${entry.slug}.html`),
+      buildPage({
+        title: `${entry.division} — 기본 정리`,
+        css,
+        nav: `<nav class="topnav"><a href="../index.html">← 목록으로</a></nav>`,
+        body: `<article class="note">
+<div class="meta"><span>기본 정리 · ${escapeHtml(entry.sources)}</span></div>
+<h1>${escapeHtml(entry.division)}</h1>
+${entry.html}
+</article>`,
+      }),
+      "utf8",
+    );
   }
 
   for (const note of notes) {
@@ -402,29 +512,44 @@ ${note.html}
   const configPath = path.join(ROOT, "app", "config.json");
   if (fs.existsSync(configPath)) {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const categoriesPath = path.join(BASE, "categories.json");
+    const editorConfig = {
+      ...config,
+      categories: fs.existsSync(categoriesPath)
+        ? JSON.parse(fs.readFileSync(categoriesPath, "utf8"))
+        : {},
+      divisions: base.map((entry) => entry.division),
+    };
     const editor = fs
       .readFileSync(path.join(ROOT, "app", "index.html"), "utf8")
-      .replace("</head>", `<script>window.FM_CONFIG = ${JSON.stringify(config)};<\/script>\n</head>`);
+      .replace("</head>", `<script>window.FM_CONFIG = ${JSON.stringify(editorConfig)};<\/script>\n</head>`);
     fs.writeFileSync(path.join(DIST, "new.html"), editor, "utf8");
   }
 
-  fs.writeFileSync(path.join(DIST, "index.html"), buildIndex(tree, css), "utf8");
+  fs.writeFileSync(path.join(DIST, "index.html"), buildIndex(tree, base, css), "utf8");
 
-  if (chrome && notes.length) {
+  if (chrome && (notes.length || base.length)) {
     const bookPath = path.join(HTML_DIR, "_book.html");
-    fs.writeFileSync(bookPath, buildBook(tree, css), "utf8");
-    printPdf(chrome, bookPath, path.join(PDF_DIR, "fm_board_all.pdf"));
+    const bookHtml = buildBook(tree, base, css);
+    fs.writeFileSync(bookPath, bookHtml, "utf8");
+    const pdfPath = path.join(PDF_DIR, "fm_board_all.pdf");
+    const outlinePath = path.join(PDF_DIR, "_outline.json");
+    fs.writeFileSync(outlinePath, JSON.stringify({ items: collectOutline(bookHtml) }), "utf8");
+    printPdf(chrome, bookPath, pdfPath);
+    addOutline(pdfPath, outlinePath);
+    assertKoreanFont(pdfPath);
+    fs.rmSync(outlinePath, { force: true });
     fs.rmSync(bookPath);
   }
 
   const uncategorized = notes.filter((n) => !n.division).length;
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   console.log(
-    `완료: ${notes.length}개 기록 · ${tree.chapters.length}개 대단원` +
+    `완료: 기본 ${base.length}단원 · 기록 ${notes.length}개 · ${tree.chapters.length}개 대단원` +
       (uncategorized ? ` (미분류 ${uncategorized})` : "") +
       ` · ${seconds}s → dist/`,
   );
-  return { notes, tree };
+  return { notes, tree, base };
 }
 
 function main() {

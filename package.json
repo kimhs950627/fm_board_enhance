@@ -9,6 +9,7 @@
     "share": "node scripts/share.mjs",
     "build": "node scripts/build.mjs",
     "build:html": "node scripts/build.mjs --no-pdf",
+    "base": "python3 scripts/build_base.py",
     "watch": "node scripts/build.mjs --watch"
   }
 }

@@ -7,3 +7,4 @@ logs/
 .share-token
 .DS_Store
 Thumbs.db
+.base-queue.txt

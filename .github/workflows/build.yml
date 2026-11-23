@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "notes/**"
+      - "base/**"
       - "app/**"
       - "scripts/**"
       - "templates/**"
@@ -38,6 +39,9 @@ jobs:
           echo "한글 글꼴 $(fc-list :lang=ko | wc -l)개"
           fc-match "Noto Sans CJK KR"
           test "$(fc-list :lang=ko | wc -l)" -gt 0
+
+      - name: Install PDF outline tool
+        run: python3 -m pip install --break-system-packages --quiet pymupdf
 
       - uses: browser-actions/setup-chrome@v1
         id: chrome

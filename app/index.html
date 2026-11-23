@@ -66,9 +66,24 @@
     background: #fff;
     color: var(--ink);
   }
-  .fields input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .fields input:focus, .fields select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
   .fields .title { flex: 1 1 60%; font-weight: 700; }
   .fields .category { flex: 1 1 40%; }
+
+  .picks { align-items: stretch; }
+  .pickbox { flex: 1 1 0; display: flex; flex-direction: column; gap: 4px; }
+  .pickbox > span { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .01em; }
+  .pickbox select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+  }
+  .pickbox select:disabled { color: var(--muted); background: #f7f8fa; }
+  .picks .category { flex: 1 1 0; align-self: flex-end; }
 
   .editor-card {
     background: #fff;
@@ -172,8 +187,18 @@
 
   <div class="fields">
     <input id="title" class="title" type="text" placeholder="제목 (비워두면 본문에서 자동)">
-    <input id="category" class="category" type="text" list="cats" placeholder="카테고리 (여러 개는 쉼표: 이상지질혈증, 심혈관)">
-    <datalist id="cats"></datalist>
+  </div>
+
+  <div class="fields picks">
+    <label class="pickbox">
+      <span>대단원</span>
+      <select id="division"><option value="">— 선택 —</option></select>
+    </label>
+    <label class="pickbox">
+      <span>소단원</span>
+      <select id="topic" disabled><option value="">— 대단원 먼저 —</option></select>
+    </label>
+    <input id="topicCustom" class="category" type="text" placeholder="소단원 직접 입력" hidden>
   </div>
 
   <div class="editor-card">
@@ -200,10 +225,11 @@
 <script>
 const editor = document.getElementById("editor");
 const titleEl = document.getElementById("title");
-const categoryEl = document.getElementById("category");
+const divisionEl = document.getElementById("division");
+const topicEl = document.getElementById("topic");
+const topicCustomEl = document.getElementById("topicCustom");
 const statusEl = document.getElementById("status");
 const recentEl = document.getElementById("recent");
-const catsEl = document.getElementById("cats");
 const fileEl = document.getElementById("file");
 
 let imageSeq = 0;
@@ -212,6 +238,54 @@ const images = new Map();
 const CFG = window.FM_CONFIG || null;
 const REMOTE = Boolean(CFG && CFG.owner && CFG.repo);
 const API = REMOTE ? `https://api.github.com/repos/${CFG.owner}/${CFG.repo}` : "";
+const CUSTOM = "__custom__";
+
+// 대단원 → 소단원 목록 (docx 에서 뽑은 base/categories.json, 빌드 때 주입된다)
+function categoryMap() {
+  return (CFG && CFG.categories) || {};
+}
+
+function topicOptions(division) {
+  const parts = categoryMap()[division] || {};
+  const names = [...new Set(Object.values(parts).flat())];
+  return names.filter(Boolean);
+}
+
+function fillDivisions() {
+  const names = Object.keys(categoryMap());
+  const fallback = CFG && Array.isArray(CFG.divisions) ? CFG.divisions : [];
+  const list = names.length ? names : fallback;
+  divisionEl.innerHTML =
+    `<option value="">— 선택 —</option>` +
+    list.map((name) => `<option value="${name.replace(/"/g, "&quot;")}">${name}</option>`).join("");
+}
+
+function fillTopics(division) {
+  const topics = topicOptions(division);
+  if (!division) {
+    topicEl.innerHTML = `<option value="">— 대단원 먼저 —</option>`;
+    topicEl.disabled = true;
+    topicCustomEl.hidden = true;
+    return;
+  }
+  topicEl.disabled = false;
+  topicEl.innerHTML =
+    `<option value="">— 선택 —</option>` +
+    topics.map((name) => `<option value="${name.replace(/"/g, "&quot;")}">${name}</option>`).join("") +
+    `<option value="${CUSTOM}">기타 (직접 입력)</option>`;
+  topicCustomEl.hidden = true;
+  topicCustomEl.value = "";
+}
+
+divisionEl.addEventListener("change", () => fillTopics(divisionEl.value));
+topicEl.addEventListener("change", () => {
+  const custom = topicEl.value === CUSTOM;
+  topicCustomEl.hidden = !custom;
+  if (custom) topicCustomEl.focus();
+});
+
+fillDivisions();
+fillTopics("");
 
 function ghToken() {
   return localStorage.getItem("fm_gh_token") || "";
@@ -281,7 +355,8 @@ function entryMarkdown(payload, id) {
     `id: ${id}`,
     `title: ${payload.title}`,
     `created: ${created}`,
-    `categories: ${(payload.categories || []).join(", ")}`,
+    `division: ${payload.division || ""}`,
+    `topics: ${payload.topic || ""}`,
     "---",
     "",
     payload.markdown,
@@ -486,11 +561,6 @@ fileEl.addEventListener("change", () => {
 async function loadRecent() {
   const notes = REMOTE ? await listRemote() : await listFallback();
 
-  const cats = [
-    ...new Set(notes.flatMap((n) => [n.division, ...(n.topics || [])]).filter(Boolean)),
-  ].sort((a, b) => a.localeCompare(b, "ko"));
-  catsEl.innerHTML = cats.map((c) => `<option value="${c.replace(/"/g, "&quot;")}">`).join("");
-
   if (!notes.length) {
     recentEl.innerHTML = `<li><span class="excerpt">아직 기록이 없습니다.</span></li>`;
     return;
@@ -529,7 +599,8 @@ async function save() {
   try {
     const payload = {
       title: titleEl.value.trim() || deriveTitle(markdown),
-      categories: categoryEl.value.split(",").map((c) => c.trim()).filter(Boolean),
+      division: divisionEl.value,
+      topic: topicEl.value === CUSTOM ? topicCustomEl.value.trim() : topicEl.value,
       markdown,
       images: [...images.entries()].map(([name, dataUrl]) => ({ name, dataUrl })),
     };
@@ -552,7 +623,10 @@ async function save() {
 
     editor.innerHTML = "";
     titleEl.value = "";
-    categoryEl.value = "";
+    divisionEl.value = "";
+    fillTopics("");
+    topicCustomEl.hidden = true;
+    topicCustomEl.value = "";
     images.clear();
     imageSeq = 0;
     setStatus(

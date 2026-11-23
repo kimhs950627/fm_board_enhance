@@ -5,8 +5,10 @@ import { spawnSync } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const NOTES = path.join(ROOT, "notes");
+const BASE = path.join(ROOT, "base");
 const LOGS = path.join(ROOT, "logs");
 const QUEUE = path.join(ROOT, ".triage-queue.txt");
+const BASE_QUEUE = path.join(ROOT, ".base-queue.txt");
 const MODEL = process.env.FM_MODEL || "deepseek/deepseek-v4.1-flash";
 const EFFORT = process.env.FM_EFFORT || "low";
 const AGENT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -74,6 +76,71 @@ function quote(value) {
   return `"${String(value).replace(/"/g, "")}"`;
 }
 
+// base 는 docx 를 옮긴 '기본 교재'다. 오늘 다듬은 기록을 base 의 해당 소제목 아래에
+// 덧붙이게 하고, 기존 줄이 하나라도 지워지면 되돌린다(덧붙이기 전용).
+function syncBase(targets) {
+  const baseFiles = fs.existsSync(BASE)
+    ? fs.readdirSync(BASE).filter((name) => name.endsWith(".md")).sort()
+    : [];
+  if (!baseFiles.length) {
+    log("base 없음 → base 갱신 건너뜀");
+    return;
+  }
+
+  fs.writeFileSync(
+    BASE_QUEUE,
+    [
+      "# base/*.md 는 시험 기본 교재다. 아래 기록에서 base 에 없는 내용만 해당 소단원에 덧붙인다.",
+      "# 규칙: 기존 줄을 지우거나 고치지 않는다(덧붙이기만). 없는 소단원이면 파일 끝에 '### <소단원>' 로 추가한다.",
+      ...baseFiles.map((name) => `base/${name}`),
+      "",
+      "# 오늘 처리한 기록",
+      ...targets.map((name) => `notes/${name}/polished.md`),
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const prompt =
+    "이 저장소 루트의 .base-queue.txt 를 읽고 그 지시대로 작업해라. " +
+    "base/*.md 는 시험 기본 교재이고, 오늘 다듬은 기록 내용을 해당 대단원 파일의 맞는 소단원에 덧붙인다. " +
+    "기존 줄은 절대 지우거나 고치지 말고 덧붙이기만 한다. 중복되는 내용은 넣지 않는다. " +
+    "git 명령은 실행하지 마라. 완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
+
+  const command =
+    `cmdc.cmd -p ${quote(prompt)}` +
+    ` --model ${quote(MODEL)} --effort ${quote(EFFORT)}` +
+    ` --permission-mode accept-edits --trust --skip-onboarding --no-auto-update` +
+    ` --output-format text`;
+
+  log("base 갱신 에이전트 실행 중…");
+  const agent = spawnSync(command, {
+    cwd: ROOT,
+    encoding: "utf8",
+    shell: true,
+    timeout: AGENT_TIMEOUT_MS,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  log(`base 에이전트 종료 (status=${agent.status})`);
+
+  const diff = run("git", ["diff", "--numstat", "--", "base"]);
+  const removed = diff.out
+    .split("\n")
+    .map((line) => line.split("\t"))
+    .filter((cols) => cols.length >= 2 && Number(cols[1]) > 0);
+
+  if (!diff.out.trim()) {
+    log("base 변경 없음");
+  } else if (removed.length) {
+    log(`base 에서 줄이 지워짐 → 되돌림: ${removed.map((c) => c[2]).join(", ")}`);
+    run("git", ["checkout", "--", "base"]);
+  } else {
+    log(`base 갱신: ${diff.out.split("\n").length}개 파일 (추가만)`);
+  }
+
+  fs.rmSync(BASE_QUEUE, { force: true });
+}
+
 function main() {
   log("=== daily triage 시작 ===");
   log(`model=${MODEL} effort=${EFFORT}`);
@@ -134,6 +201,8 @@ function main() {
     log(`polished.md 누락 ${missing.length}건 → 커밋하지 않고 중단: ${missing.join(", ")}`);
     process.exit(1);
   }
+
+  syncBase(targets);
 
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
   if (!build.ok) {

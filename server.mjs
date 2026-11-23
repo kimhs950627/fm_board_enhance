@@ -98,20 +98,17 @@ function saveNote(payload) {
     `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
     `T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   const title = String(payload.title || "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const categories = [
-    ...new Set(
-      (Array.isArray(payload.categories) ? payload.categories : String(payload.category || "").split(","))
-        .map((c) => String(c).replace(/[\r\n]/g, " ").trim())
-        .filter(Boolean),
-    ),
-  ];
+  const clean = (value) => String(value || "").replace(/[\r\n]/g, " ").trim();
+  const division = clean(payload.division || payload.category);
+  const topic = clean(payload.topic);
 
   const front = [
     "---",
     `id: ${id}`,
     `title: ${title || "(제목 없음)"}`,
     `created: ${created}`,
-    `categories: ${categories.join(", ")}`,
+    `division: ${division}`,
+    `topics: ${topic}`,
     "---",
     "",
   ].join("\n");
@@ -208,7 +205,23 @@ const server = http.createServer(async (req, res) => {
     const file = path.join(APP, path.basename(page));
     if (fs.existsSync(file) && fs.statSync(file).isFile()) {
       const type = MIME[path.extname(file).toLowerCase()] || "application/octet-stream";
-      return send(res, 200, type, fs.readFileSync(file), extra);
+      let body = fs.readFileSync(file);
+      if (page === "index.html" && type.startsWith("text/html")) {
+        // 로컬 실행에서도 대단원·소단원 목록을 쓰도록 base/categories.json 을 주입한다
+        const configPath = path.join(APP, "config.json");
+        const categoriesPath = path.join(ROOT, "base", "categories.json");
+        const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
+        if (fs.existsSync(categoriesPath)) {
+          config.categories = JSON.parse(fs.readFileSync(categoriesPath, "utf8"));
+        }
+        body = Buffer.from(
+          body
+            .toString("utf8")
+            .replace("</head>", `<script>window.FM_CONFIG = ${JSON.stringify(config)};<\/script>\n</head>`),
+          "utf8",
+        );
+      }
+      return send(res, 200, type, body, extra);
     }
 
     return send(res, 404, "text/plain; charset=utf-8", "not found", extra);
