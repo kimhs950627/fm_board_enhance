@@ -38,7 +38,9 @@ def main() -> int:
         needle = title[:30]
         page = None
         for pno in range(cursor, doc.page_count):
-            if doc[pno].search_for(needle):
+            # 줄 전체가 제목과 같아야 한다 — 표지의 '가정의학과 전문의' 같은 부분 일치를 막는다
+            lines = [line.strip() for line in doc[pno].get_text().split("\n")]
+            if title in lines:
                 page = pno
                 break
         if page is None:
