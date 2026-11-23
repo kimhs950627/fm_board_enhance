@@ -76,6 +76,14 @@ schtasks /Query /TN "fm_board_enhance daily" /V /FO LIST
 - GitHub Pages(공개 사이트)는 토큰을 받을 수 없다. 다른 기기·브라우저에서는 예전처럼 한 번 붙여넣고
   `localStorage` 에 남긴다.
 
+### 계층 점검 (매일)
+
+- `python3 scripts/hierarchy_audit.py` → `reports/hierarchy-audit.md`: 아직 평평한 소단원 순위
+  (긴 불릿 목록, 한 줄에 뭉친 계층, 잘못된 들여쓰기를 점수화).
+- 새벽 작업이 1순위 섹션 하나를 `scripts/hierarchy_llm.mjs` 로 LLM 에 넘겨 계층만 정리한다.
+  글자 보존 검사(`check_content.py`)를 통과해야 남고, 실패하면 그 파일만 되돌린다.
+- 처리한 섹션은 `reports/hierarchy-done.json` 에 쌓여 매일 다음 순위로 내려간다.
+
 ### 기록 수정
 
 - 입력 앱 아래 '최근 기록' 목록에서 **수정** 을 누르면 그 기록의 마크다운 원문이 편집기에 열린다.
