@@ -101,6 +101,17 @@ function quote(value) {
 
 // base 는 docx 를 옮긴 '기본 교재'다. 오늘 다듬은 기록을 base 의 해당 소제목 아래에
 // 덧붙이게 하고, 기존 줄이 하나라도 지워지면 되돌린다(덧붙이기 전용).
+// 매일 다른 대단원 하나씩 — 아직 평평한 소단원을 계층 정리 우선순위로 넘긴다.
+function hierarchyFocus() {
+  const audit = run("python", ["-3", "scripts/hierarchy_audit.py", "--print"]);
+  if (!audit.ok) return ["# (점검 보고서를 만들지 못함)"];
+  const row = audit.out.split("\n").find((line) => /^\| \d/.test(line));
+  if (!row) return ["# 남은 평평한 소단원 없음"];
+  const [, score, division, section] = row.split("|").map((cell) => cell.trim());
+  const file = fs.readdirSync(BASE).find((name) => name.endsWith(".md") && name.startsWith(division));
+  return [`# ${file || division + ".md"} — '${section}' (평평도 ${score})`, `base/${file || division + ".md"}`];
+}
+
 function syncBase(targets) {
   const baseFiles = fs.existsSync(BASE)
     ? fs.readdirSync(BASE).filter((name) => name.endsWith(".md")).sort()
@@ -125,6 +136,9 @@ function syncBase(targets) {
       "#  - 맞는 소단원이 없을 때만 해당 위치에 '### <소단원>' 을 새로 만든다.",
       ...baseFiles.map((name) => `base/${name}`),
       "",
+      "# 이번 회차 계층 우선순위",
+      ...hierarchyFocus(),
+      "",
       "# 오늘 처리한 기록",
       ...targets.map((name) => `notes/${name}/polished.md`),
       "",
@@ -139,6 +153,7 @@ function syncBase(targets) {
     "불릿이 평평하게 늘어선 곳은 병명·검사·분류 단위로 소단원(###)을 만들어 올려라. " +
     "계층을 맞추는 데만 임상 지식을 쓰고, 문장·수치·약물명은 새로 쓰지 마라. " +
     "치료가 단계로 나뉘면(급성기 치료, 리듬 조절, 뇌졸중 예방 …) 그 라벨을 상위 불릿으로 두고 세부 항목을 들여써라. " +
+    ".base-queue.txt 의 '계층 우선순위' 섹션이 있으면 그 소단원부터 계층을 정리하라. " +
     "단원이나 파일 끝에 새 블록처럼 붙이지 마라. 성격이 다른 내용이 섞여 있으면 소단원을 나눠라. " +
     "사실·수치·약물명·족보 표시(￥)는 지우지 마라. git 명령은 실행하지 마라. " +
     "완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
