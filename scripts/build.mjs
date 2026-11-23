@@ -450,7 +450,11 @@ ${entry.html}
       const counts = [
         baseHtml ? `기본 정리 ${baseHtml.headings.length}항목` : "",
         notes
-          ? `기록 ${notes.parts.reduce((s, p) => s + p.topics.reduce((n, t) => n + t.notes.filter((note) => !note.merged).length, 0), 0)}개`
+          ? `기록 ${
+              new Set(
+                notes.parts.flatMap((p) => p.topics.flatMap((t) => t.notes.filter((note) => !note.merged))).map((note) => note.id),
+              ).size
+            }개`
           : "",
       ]
         .filter(Boolean)
@@ -507,10 +511,12 @@ ${tocRows}
 }
 
 function buildIndex(tree, base, css) {
-  const allNotes = [
+  const flatNotes = [
     ...tree.chapters.flatMap((c) => c.parts.flatMap((p) => p.topics.flatMap((t) => t.notes))),
     ...tree.loose,
   ];
+  // 소단원이 둘 이상이면 같은 기록이 두 번 잡힌다 — id 로 합친다
+  const allNotes = [...new Map(flatNotes.map((note) => [note.id, note])).values()];
   const live = allNotes
     .filter((note) => !note.merged)
     .sort((a, b) => String(b.created).localeCompare(String(a.created)));
