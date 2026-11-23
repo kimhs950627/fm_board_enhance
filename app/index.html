@@ -94,6 +94,44 @@
   .pickbox select:disabled { color: var(--muted); background: var(--surface); }
   .picks .category { flex: 1 1 0; align-self: flex-end; }
 
+  .edit-card { margin-bottom: 18px; }
+
+  .edit-fields { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+
+  .edit-fields input,
+  .edit-fields select {
+    font: inherit;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .edit-fields .picks { display: flex; gap: 10px; }
+
+  .edit-body {
+    width: 100%;
+    min-height: 320px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-monospace, "D2Coding", "Consolas", monospace;
+    font-size: 13.5px;
+    line-height: 1.7;
+    resize: vertical;
+  }
+
+  .edit-btn {
+    margin-left: 8px;
+    padding: 3px 9px;
+    font-size: 12.5px;
+    border-radius: var(--radius);
+  }
+
   .editor-card {
     background: var(--paper);
     border: 1px solid var(--line);
@@ -226,6 +264,33 @@
       <span id="status" class="status"></span>
     </div>
   </div>
+
+  <section class="editor-card edit-card" id="edit-card" hidden>
+    <div class="toolbar">
+      <strong style="font-size:14px">기록 수정</strong>
+      <span class="hint" id="edit-id"></span>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" id="edit-cancel">취소</button>
+    </div>
+    <div class="edit-fields">
+      <input id="edit-title" type="text" aria-label="수정할 기록 제목" placeholder="제목">
+      <div class="picks">
+        <label class="pickbox"><span>대단원</span>
+          <select id="edit-division" aria-label="수정할 기록 대단원"></select>
+        </label>
+        <label class="pickbox"><span>소단원</span>
+          <select id="edit-topic" aria-label="수정할 기록 소단원"></select>
+        </label>
+      </div>
+      <input id="edit-topic-custom" class="category" type="text" aria-label="소단원 직접 입력" placeholder="소단원 직접 입력" hidden>
+      <textarea id="edit-body" class="edit-body" spellcheck="false" aria-label="기록 본문(마크다운)"></textarea>
+      <p class="hint">본문은 마크다운 원문이다. 고치고 저장하면 같은 기록이 새 판으로 커밋되고, 다음 병합 때 다시 기본 교재로 들어간다.</p>
+      <div class="footer">
+        <button class="primary" id="edit-save">수정 저장</button>
+        <span id="edit-status" class="status"></span>
+      </div>
+    </div>
+  </section>
 
   <h2 class="sec">최근 기록</h2>
   <ul class="recent" id="recent"></ul>
@@ -398,6 +463,9 @@ async function listRemote() {
           part: data.part || "",
           topics: split(data.topics || data.topic),
           created: data.created || "",
+          sha: file.sha || "",
+          body: body,
+          merged: String(data.merged || "").toLowerCase() === "true",
           excerpt: body
             .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
             .replace(/[#>*_\[\]{}]/g, "")
@@ -578,6 +646,14 @@ fileEl.addEventListener("change", () => {
   fileEl.value = "";
 });
 
+let recentCache = [];
+recentEl.addEventListener("click", (event) => {
+  const button = event.target.closest(".edit-btn");
+  if (!button) return;
+  const note = recentCache.find((n) => n.id === button.dataset.id);
+  if (note) openEdit(note);
+});
+
 async function loadRecent() {
   const notes = REMOTE ? await listRemote() : await listFallback();
 
@@ -585,6 +661,7 @@ async function loadRecent() {
     recentEl.innerHTML = `<li><span class="excerpt">아직 기록이 없습니다.</span></li>`;
     return;
   }
+  recentCache = notes;
   recentEl.innerHTML = notes
     .slice(0, 12)
     .map((n) => {
@@ -596,9 +673,151 @@ async function loadRecent() {
         ? chips.map((c) => `<span class="cat">${c}</span>`).join("")
         : `<span class="cat none">미분류</span>`;
       const date = (n.created || "").replace("T", " ").slice(5, 16);
-      return `<li>${cats}<span class="t">${n.title}</span><span class="excerpt">${n.excerpt}</span><span class="date">${date}</span></li>`;
+      return `<li>${cats}<span class="t">${n.title}</span><span class="excerpt">${n.excerpt}</span><span class="date">${date}</span><button type="button" class="edit-btn" data-id="${n.id}">수정</button></li>`;
     })
     .join("");
+}
+
+// ── 기록 수정 ────────────────────────────────────────────────
+let editTarget = null;
+const editCard = document.getElementById("edit-card");
+const editTitle = document.getElementById("edit-title");
+const editDivision = document.getElementById("edit-division");
+const editTopic = document.getElementById("edit-topic");
+const editTopicCustom = document.getElementById("edit-topic-custom");
+const editBody = document.getElementById("edit-body");
+const editId = document.getElementById("edit-id");
+const editStatus = document.getElementById("edit-status");
+
+function setEditStatus(text, kind = "") {
+  editStatus.textContent = text;
+  editStatus.className = "status " + kind;
+}
+
+function editTopicOptions(division, selected) {
+  const options = topicOptions(division);
+  const list = options.length ? options : [];
+  if (selected && !list.includes(selected)) list.push(selected);
+  editTopic.innerHTML =
+    `<option value="">— 선택 —</option>` +
+    list.map((name) => `<option value="${name.replace(/"/g, "&quot;")}">${name}</option>`).join("") +
+    `<option value="${CUSTOM}">기타 (직접 입력)</option>`;
+  if (selected && list.includes(selected)) {
+    editTopic.value = selected;
+    editTopicCustom.hidden = true;
+  } else if (selected) {
+    editTopic.value = CUSTOM;
+    editTopicCustom.hidden = false;
+    editTopicCustom.value = selected;
+  } else {
+    editTopic.value = "";
+    editTopicCustom.hidden = true;
+  }
+}
+
+function openEdit(note) {
+  editTarget = note;
+  editId.textContent = `notes/${note.id}`;
+  editTitle.value = note.title === "(제목 없음)" ? "" : note.title;
+  editBody.value = note.body || "";
+
+  const divisions = Object.keys(categoryMap());
+  editDivision.innerHTML =
+    `<option value="">— 선택 —</option>` +
+    divisions.map((name) => `<option value="${name.replace(/"/g, "&quot;")}">${name}</option>`).join("");
+  editDivision.value = note.division || "";
+  editTopicOptions(note.division || "", (note.topics || [])[0] || "");
+
+  setEditStatus(note.merged ? "이미 기본 교재에 병합된 기록 — 수정하면 다시 병합 대상이 된다" : "");
+  editCard.hidden = false;
+  editCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  editTitle.focus();
+}
+
+editDivision.addEventListener("change", () => editTopicOptions(editDivision.value, ""));
+editTopic.addEventListener("change", () => {
+  const custom = editTopic.value === CUSTOM;
+  editTopicCustom.hidden = !custom;
+  if (custom) editTopicCustom.focus();
+});
+document.getElementById("edit-cancel").addEventListener("click", () => {
+  editCard.hidden = true;
+  editTarget = null;
+});
+
+document.getElementById("edit-save").addEventListener("click", async () => {
+  if (!editTarget) return;
+  const body = editBody.value.trim();
+  if (!body) {
+    setEditStatus("본문이 비어 있다.", "err");
+    return;
+  }
+  const button = document.getElementById("edit-save");
+  button.disabled = true;
+  setEditStatus("저장 중…");
+
+  const note = {
+    id: editTarget.id,
+    title: editTitle.value.trim() || deriveTitle(body),
+    created: editTarget.created || new Date().toISOString().slice(0, 19),
+    division: editDivision.value,
+    topic: editTopic.value === CUSTOM ? editTopicCustom.value.trim() : editTopic.value,
+    markdown: body,
+    merged: false,
+  };
+
+  try {
+    if (REMOTE) {
+      if (!ensureToken()) {
+        setEditStatus("토큰이 필요하다.", "err");
+        return;
+      }
+      await updateRemote(note, editTarget.sha);
+    } else {
+      const res = await fetch(`/api/notes/${encodeURIComponent(note.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(note),
+      }).then((r) => r.json());
+      if (!res.ok) throw new Error(res.error || "수정 실패");
+    }
+    setEditStatus("수정됨 → 빌드가 갱신된다");
+    editCard.hidden = true;
+    editTarget = null;
+    loadRecent();
+  } catch (error) {
+    setEditStatus(error.message, "err");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function frontMatterFor(note) {
+  return [
+    "---",
+    `id: ${note.id}`,
+    `title: ${note.title}`,
+    `created: ${note.created}`,
+    `division: ${note.division || ""}`,
+    `topics: ${note.topic || ""}`,
+    "---",
+    "",
+    note.markdown,
+    "",
+  ].join("\n");
+}
+
+async function updateRemote(note, sha) {
+  const content = toBase64(frontMatterFor(note));
+  await gh(`/contents/notes/${note.id}/entry.md`, {
+    method: "PUT",
+    body: JSON.stringify({
+      message: `edit: ${note.title} (entry.md)`,
+      content,
+      sha,
+      branch: CFG.branch,
+    }),
+  });
 }
 
 function deriveTitle(markdown) {

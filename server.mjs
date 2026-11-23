@@ -91,6 +91,9 @@ function listNotes() {
       topics: split(data.topics || data.topic),
       created: data.created || "",
       images,
+      sha: "",
+      body,
+      merged: String(data.merged || "").toLowerCase() === "true",
       excerpt: body
         .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
         .replace(/[#>*_\[\]{}]/g, "")
@@ -205,6 +208,36 @@ const server = http.createServer(async (req, res) => {
       const payload = await readJson(req);
       const saved = saveNote(payload);
       return send(res, 200, "application/json; charset=utf-8", JSON.stringify({ ok: true, ...saved }), extra);
+    }
+
+    if (url.pathname.startsWith("/api/notes/") && req.method === "PUT") {
+      const id = decodeURIComponent(url.pathname.slice("/api/notes/".length));
+      if (!/^[\w-]+$/.test(id)) {
+        return send(res, 400, "application/json; charset=utf-8", JSON.stringify({ ok: false, error: "잘못된 id" }), extra);
+      }
+      const payload = await readJson(req);
+      const dir = path.join(NOTES, id);
+      const file = path.join(dir, "entry.md");
+      if (!fs.existsSync(file)) {
+        return send(res, 404, "application/json; charset=utf-8", JSON.stringify({ ok: false, error: "기록 없음" }), extra);
+      }
+      const { data } = readEntryFrontMatter(fs.readFileSync(file, "utf8"));
+      const clean = (value) => String(value || "").replace(/[\r\n]/g, " ").trim();
+      const title = clean(payload.title) || data.title || "(제목 없음)";
+      const created = data.created || clean(payload.created);
+      const front = [
+        "---",
+        `id: ${id}`,
+        `title: ${title}`,
+        `created: ${created}`,
+        `division: ${clean(payload.division)}`,
+        `topics: ${clean(payload.topic)}`,
+        "---",
+        "",
+        "",
+      ].join("\n");
+      fs.writeFileSync(file, `${front}${String(payload.markdown || "").trim()}\n`, "utf8");
+      return send(res, 200, "application/json; charset=utf-8", JSON.stringify({ ok: true, id }), extra);
     }
 
     if (url.pathname === "/api/build" && req.method === "POST") {
