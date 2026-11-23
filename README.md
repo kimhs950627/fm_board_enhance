@@ -65,6 +65,17 @@ schtasks /Run /TN "fm_board_enhance daily"   # 즉시 1회 실행
 schtasks /Query /TN "fm_board_enhance daily" /V /FO LIST
 ```
 
+
+### 토큰 (pat.txt)
+
+- 저장소 루트에 `pat.txt` 를 두고 fine-grained PAT(Contents: Read and write, 이 저장소만)를 한 줄로 넣는다.
+  **`.gitignore` 대상이라 커밋되지 않는다.**
+- `npm start` 로 연 편집기는 이 토큰을 자동으로 받아 첫 저장 때 묻지 않는다.
+  주입은 **이 PC(localhost Host + 로컬 접속)** 에만 일어나고, `npm run share` 터널로 들어온 요청에는
+  토큰이 실리지 않는다(외부 노출 방지).
+- GitHub Pages(공개 사이트)는 토큰을 받을 수 없다. 다른 기기·브라우저에서는 예전처럼 한 번 붙여넣고
+  `localStorage` 에 남긴다.
+
 ### 입력 앱
 
 - 굵게 `Ctrl+B`, 밑줄 `Ctrl+U`, 이미지는 **Ctrl+V 붙여넣기** 또는 드래그/선택 — **여러 장 가능**

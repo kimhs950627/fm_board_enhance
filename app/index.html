@@ -297,7 +297,8 @@ fillDivisions();
 fillTopics("");
 
 function ghToken() {
-  return localStorage.getItem("fm_gh_token") || "";
+  // pat.txt 를 로컬 서버가 주입하면 그걸 쓰고, 없으면 브라우저에 저장된 값
+  return (CFG && CFG.token) || localStorage.getItem("fm_gh_token") || "";
 }
 
 function ensureToken() {

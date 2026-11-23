@@ -9,6 +9,28 @@ const NOTES = path.join(ROOT, "notes");
 const APP = path.join(ROOT, "app");
 const PORT = Number(process.env.PORT || 4173);
 const APP_TOKEN = process.env.APP_TOKEN || "";
+const PAT_FILE = path.join(ROOT, "pat.txt");
+
+// pat.txt 는 .gitignore 대상. 로컬에서만 읽고, 브라우저(이 PC)에만 내려보낸다.
+function readPat() {
+  if (!fs.existsSync(PAT_FILE)) return "";
+  const raw = fs.readFileSync(PAT_FILE, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("#"));
+  return raw || "";
+}
+
+const PAT = readPat();
+
+// 터널(npm run share)로 들어온 요청에는 토큰을 절대 싣지 않는다.
+function isLocalRequest(req) {
+  const host = String(req.headers.host || "").split(":")[0].toLowerCase();
+  const remote = String(req.socket.remoteAddress || "");
+  const localHost = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
+  const localRemote = remote === "127.0.0.1" || remote === "::1" || remote.endsWith(":127.0.0.1");
+  return localHost && localRemote && !req.headers["cf-connecting-ip"] && !req.headers["x-forwarded-for"];
+}
 const COOKIE = "fm_key";
 
 const MIME = {
@@ -214,6 +236,9 @@ const server = http.createServer(async (req, res) => {
         if (fs.existsSync(categoriesPath)) {
           config.categories = JSON.parse(fs.readFileSync(categoriesPath, "utf8"));
         }
+        if (PAT && isLocalRequest(req)) {
+          config.token = PAT;
+        }
         body = Buffer.from(
           body
             .toString("utf8")
@@ -232,6 +257,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`입력 앱: http://127.0.0.1:${PORT}`);
+  console.log(PAT ? "pat.txt 토큰: 로컬 접속에만 자동 주입" : "pat.txt 없음: 저장할 때 토큰을 물어본다");
   if (process.argv.includes("--open")) {
     spawn("cmd", ["/c", "start", "", `http://127.0.0.1:${PORT}`], { detached: true, stdio: "ignore" }).unref();
   }
