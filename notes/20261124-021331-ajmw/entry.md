@@ -3,7 +3,7 @@ id: 20261124-021331-ajmw
 title: chest discomfort/pain
 created: 2026-11-24T02:13:31
 division: 심혈관
-topics: 심혈관계 증상 - 흉통 (Chest pain, Chest discomfort)
+topics: 심혈관계 증상 - 흉통 (Chest pain
 ---
 
 보통 typical, cardiogenic chest pain은 2분 이상, 운동 시 악화, NTG로 호전
