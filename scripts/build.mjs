@@ -160,20 +160,7 @@ function markdownToHtml(note) {
     });
 }
 
-const FONTS = path.join(ROOT, "assets", "fonts");
-
-// 제목용 세리프는 저장소에 넣은 서브셋을 쓴다(사용자·CI 모두 같은 모양).
-function fontFace(prefix = "", embed = false) {
-  const face = (weight, file) => {
-    const src = embed
-      ? `data:font/woff2;base64,${fs.readFileSync(path.join(FONTS, file)).toString("base64")}`
-      : `${prefix}assets/fonts/${file}`;
-    return `@font-face{font-family:"Book Serif";src:url("${src}") format("woff2");font-weight:${weight};font-style:normal;font-display:swap}`;
-  };
-  return `${face(400, "serif-regular.woff2")}\n${face(700, "serif-bold.woff2")}`;
-}
-
-function buildPage({ title, body, css, nav = "", cssExtra = "" }) {
+function buildPage({ title, body, css, nav = "" }) {
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -181,7 +168,6 @@ function buildPage({ title, body, css, nav = "", cssExtra = "" }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <style>
-${cssExtra}
 ${css}
 </style>
 </head>
@@ -416,7 +402,6 @@ ${tree.loose.map(noteArticle).join("\n")}
   return buildPage({
     title: "가정의학과 기출 개념 단권화",
     css,
-    cssExtra: fontFace("", true),
     body: `${cover}\n${chapters}\n${loose}`,
   });
 }
@@ -479,7 +464,7 @@ ${parts}
 ${baseList}
 ${total ? sections + loose : `<p class="empty">아직 기록이 없습니다. 위의 ‘새 기록 쓰기’로 첫 기록을 남기면 이 목록에 쌓입니다.</p>`}`;
 
-  return buildPage({ title: "가정의학과 기출 개념 단권화", body, css, cssExtra: fontFace("") });
+  return buildPage({ title: "가정의학과 기출 개념 단권화", body, css });
 }
 
 function build() {
@@ -492,7 +477,6 @@ function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(HTML_DIR, { recursive: true });
   fs.mkdirSync(BASE_HTML_DIR, { recursive: true });
-  if (fs.existsSync(FONTS)) fs.cpSync(FONTS, path.join(DIST, "assets", "fonts"), { recursive: true });
   if (!NO_PDF) fs.mkdirSync(PDF_DIR, { recursive: true });
 
   const chrome = NO_PDF ? null : findChrome();
@@ -507,7 +491,6 @@ function build() {
       buildPage({
         title: `${entry.division} — 기본 정리`,
         css,
-        cssExtra: fontFace("../"),
         nav: `<nav class="topnav"><a href="../index.html">← 목록으로</a></nav>`,
         body: `<article class="note">
 <div class="meta"><span>기본 정리 · ${escapeHtml(entry.sources)}</span></div>
@@ -531,7 +514,6 @@ ${entry.html}
       buildPage({
         title: note.title,
         css,
-        cssExtra: fontFace("../"),
         nav: `<nav class="topnav"><a href="../index.html">← 목록으로</a></nav>`,
         body: `<article class="note">
 <div class="meta"><span>${escapeHtml(meta)}</span></div>
