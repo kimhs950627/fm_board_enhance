@@ -102,7 +102,7 @@ function syncBase(targets) {
   );
 
   const prompt =
-    "이 저장소 루트의 .base-queue.txt 를 읽고 그 지시대로 작업해라. " +
+    "이 저장소 루트의 STYLE.md 와 .base-queue.txt 를 읽고 그 지시대로 작업해라. " +
     "base/*.md 는 시험 기본 교재이고, 오늘 다듬은 기록 내용을 해당 대단원 파일의 맞는 소단원에 덧붙인다. " +
     "기존 줄은 절대 지우거나 고치지 말고 덧붙이기만 한다. 중복되는 내용은 넣지 않는다. " +
     "git 명령은 실행하지 마라. 완료하면 수정한 base 파일 경로만 한 줄씩 출력해라.";
@@ -150,9 +150,15 @@ function main() {
     log(`git pull 실패, 중단: ${pull.out}`);
     process.exit(1);
   }
-  log(pull.out.includes("Already up to date") ? "pull: 이미 최신" : "pull: 갱신됨");
+  const upToDate = pull.out.includes("Already up to date");
+  log(upToDate ? "pull: 원격에 새 커밋 없음" : "pull: 갱신됨");
 
   const targets = pendingNotes();
+  if (upToDate && !targets.length) {
+    // 원격도 그대로, 다듬을 기록도 없으면 아무것도 만들지 않는다(LLM·빌드 비용 0)
+    log("변경 없음 → 스킬 로드·빌드 없이 종료.");
+    return;
+  }
   if (!targets.length) {
     log("처리할 노트 없음. 종료.");
     return;
@@ -171,7 +177,7 @@ function main() {
   );
 
   const prompt =
-    "이 저장소 루트의 TRIAGE.md를 읽고 그 규칙대로 작업해라. " +
+    "이 저장소 루트의 TRIAGE.md 와 STYLE.md 를 읽고 그 규칙대로 작업해라. " +
     "대상 목록은 .triage-queue.txt 에 있다. " +
     "각 대상 폴더의 entry.md를 읽고 같은 폴더에 polished.md를 만든다. " +
     "entry.md와 다른 파일은 수정하지 말고, git 명령도 실행하지 마라. " +

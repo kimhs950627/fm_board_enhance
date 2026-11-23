@@ -61,10 +61,13 @@ def is_heading(line: str) -> bool:
     return True
 
 
+MARKERS = {"☞": "→", "➡": "→", "⇒": "→", "★": "·", "☆": "·", "✔": "·", "✓": "·"}
+
+
 def render_note(lines: list[str]) -> list[str]:
     out: list[str] = []
     for raw in lines:
-        line = raw.rstrip()
+        line = "".join(MARKERS.get(ch, ch) for ch in raw.rstrip())
         if not line.strip():
             continue
         indented = line[:1] in (" ", "\t")

@@ -149,10 +149,31 @@ function markdownToHtml(note) {
   if (result.status !== 0) {
     throw new Error(`pandoc 변환 실패 (${note.id}):\n${result.stderr}`);
   }
-  return result.stdout.replace(/<colgroup>[\s\S]*?<\/colgroup>\s*/g, "");
+  // 이미지 대체텍스트: 비어 있으면 파일명으로 채운다(접근성 검사 통과 + PDF 태그)
+  return result.stdout
+    .replace(/<colgroup>[\s\S]*?<\/colgroup>\s*/g, "")
+    .replace(/<img([^>]*)>/g, (tag, attrs) => {
+      if (/alt="[^"]+"/.test(attrs)) return tag;
+      const src = /src="([^"]*)"/.exec(attrs)?.[1] || "이미지";
+      const name = decodeURIComponent(src.split("/").pop() || src);
+      return `<img${attrs.replace(/alt="[^"]*"/, "").trimEnd()} alt="${name}">`;
+    });
 }
 
-function buildPage({ title, body, css, nav = "" }) {
+const FONTS = path.join(ROOT, "assets", "fonts");
+
+// 제목용 세리프는 저장소에 넣은 서브셋을 쓴다(사용자·CI 모두 같은 모양).
+function fontFace(prefix = "", embed = false) {
+  const face = (weight, file) => {
+    const src = embed
+      ? `data:font/woff2;base64,${fs.readFileSync(path.join(FONTS, file)).toString("base64")}`
+      : `${prefix}assets/fonts/${file}`;
+    return `@font-face{font-family:"Book Serif";src:url("${src}") format("woff2");font-weight:${weight};font-style:normal;font-display:swap}`;
+  };
+  return `${face(400, "serif-regular.woff2")}\n${face(700, "serif-bold.woff2")}`;
+}
+
+function buildPage({ title, body, css, nav = "", cssExtra = "" }) {
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -160,6 +181,7 @@ function buildPage({ title, body, css, nav = "" }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <style>
+${cssExtra}
 ${css}
 </style>
 </head>
@@ -337,7 +359,7 @@ function buildBook(tree, base, css) {
   <div class="cover-kicker">가정의학과 전문의</div>
   <h1 class="cover-title">기출 개념 단권화</h1>
   <div class="cover-rule"></div>
-  <div class="cover-meta">기본 정리 ${base.length}단원 · 기록 ${total + looseCount}개 · ${now.getFullYear()}. ${now.getMonth() + 1}. ${now.getDate()}</div>
+  <div class="cover-meta">기본 정리 ${base.length}단원 · 기록 ${total + looseCount}개 · ${now.getFullYear()}년 ${now.getMonth() + 1}월</div>
 </section>`;
 
   const noteArticle = (note) => `<article class="note">
@@ -394,6 +416,7 @@ ${tree.loose.map(noteArticle).join("\n")}
   return buildPage({
     title: "가정의학과 기출 개념 단권화",
     css,
+    cssExtra: fontFace("", true),
     body: `${cover}\n${chapters}\n${loose}`,
   });
 }
@@ -414,7 +437,7 @@ function buildIndex(tree, base, css) {
           const partHeading = part.part ? `<h3 class="part-head">${escapeHtml(part.part)}</h3>` : "";
           const topics = part.topics
             .map(
-              (group) => `${group.topic ? `<h4 class="topic-head">${escapeHtml(group.topic)}</h4>` : ""}
+              (group) => `${group.topic ? `<h3 class="topic-head">${escapeHtml(group.topic)}</h3>` : ""}
         <ul class="doc-list">${group.notes.map(linkFor).join("")}</ul>`,
             )
             .join("\n");
@@ -448,13 +471,15 @@ ${parts}
 </section>`
     : "";
 
+  const built = new Date();
+  const builtLabel = `${built.getFullYear()}년 ${built.getMonth() + 1}월 ${built.getDate()}일 ${String(built.getHours()).padStart(2, "0")}:${String(built.getMinutes()).padStart(2, "0")} 빌드`;
   const body = `<h1>가정의학과 기출 개념 단권화</h1>
-<p class="lede">${total}개 기록 · ${tree.chapters.length}개 대단원 · 빌드 ${new Date().toLocaleString("ko-KR")}</p>
+<p class="lede">기본 정리 ${base.length}단원, 기록 ${total}개. 빌드는 ${builtLabel}.</p>
 <p class="lede"><a href="new.html">새 기록 쓰기</a> · <a href="pdf/fm_board_all.pdf">전체 PDF 열기</a></p>
 ${baseList}
-${total ? sections + loose : `<p class="empty">아직 기록이 없습니다.</p>`}`;
+${total ? sections + loose : `<p class="empty">아직 기록이 없습니다. 위의 ‘새 기록 쓰기’로 첫 기록을 남기면 이 목록에 쌓입니다.</p>`}`;
 
-  return buildPage({ title: "가정의학과 기출 개념 단권화", body, css });
+  return buildPage({ title: "가정의학과 기출 개념 단권화", body, css, cssExtra: fontFace("") });
 }
 
 function build() {
@@ -467,6 +492,7 @@ function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(HTML_DIR, { recursive: true });
   fs.mkdirSync(BASE_HTML_DIR, { recursive: true });
+  if (fs.existsSync(FONTS)) fs.cpSync(FONTS, path.join(DIST, "assets", "fonts"), { recursive: true });
   if (!NO_PDF) fs.mkdirSync(PDF_DIR, { recursive: true });
 
   const chrome = NO_PDF ? null : findChrome();
@@ -481,6 +507,7 @@ function build() {
       buildPage({
         title: `${entry.division} — 기본 정리`,
         css,
+        cssExtra: fontFace("../"),
         nav: `<nav class="topnav"><a href="../index.html">← 목록으로</a></nav>`,
         body: `<article class="note">
 <div class="meta"><span>기본 정리 · ${escapeHtml(entry.sources)}</span></div>
@@ -504,6 +531,7 @@ ${entry.html}
       buildPage({
         title: note.title,
         css,
+        cssExtra: fontFace("../"),
         nav: `<nav class="topnav"><a href="../index.html">← 목록으로</a></nav>`,
         body: `<article class="note">
 <div class="meta"><span>${escapeHtml(meta)}</span></div>
