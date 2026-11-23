@@ -45,7 +45,8 @@ def check(path: str, quiet: bool) -> bool:
         return True
     new = open(path, encoding="utf-8").read()
     lost = tokens(old) - tokens(new)
-    lost.pop("-", None)
+    for marker in ("-", ">", "•", "·", "|"):
+        lost.pop(marker, None)
     if not lost:
         return True
     if not quiet:

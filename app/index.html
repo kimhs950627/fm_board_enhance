@@ -42,6 +42,17 @@
     gap: 12px;
     margin-bottom: 18px;
   }
+  header.bar .home {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+  }
+  header.bar .home:hover { color: var(--ink); border-color: var(--line-strong); }
+
   header.bar h1 { margin: 0; font-size: 17px; letter-spacing: -0.01em; font-family: var(--font-display); }
   header.bar .spacer { flex: 1; }
 
@@ -227,6 +238,7 @@
 <body>
 <div class="wrap">
   <header class="bar">
+    <a class="home" href="./" title="목록으로">← 목록</a>
     <h1>fm_board_enhance</h1>
     <span class="spacer"></span>
     <button id="build">PDF 만들기</button>
