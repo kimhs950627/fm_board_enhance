@@ -230,14 +230,26 @@ function commitAndPush(message) {
   log(`${staged.out.split("\n").length}개 파일 변경`);
   const push = run("git", ["push"]);
   log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
+  const mergedCount = (() => {
+    try {
+      return fs
+        .readdirSync(NOTES)
+        .filter((name) => String(readFrontMatter(path.join(NOTES, name, "entry.md")).merged).toLowerCase() === "true")
+        .length;
+    } catch {
+      return 0;
+    }
+  })();
   notify(
     push.ok
-      ? `fm_board_enhance 새벽 작업 완료 — 기록 ${targets ? targets.length : 0}건 병합, 사이트·PDF 갱신`
-      : `fm_board_enhance 새벽 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
+      ? `fm_board_enhance 04:00 작업 완료 — 위계 정리 ${hierarchyReport}건 · 기록 ${targets.length}건 병합(누적 ${mergedCount}) · 사이트·PDF 갱신`
+      : `fm_board_enhance 04:00 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
   );
 }
 
 function main() {
+  let hierarchyReport = 0;
+
   if (process.argv.includes("--merge-only")) {
     log("=== base 병합만 실행 ===");
     const targets = polishedUnmerged();
@@ -247,11 +259,8 @@ function main() {
     }
     log(`대상 ${targets.length}건: ${targets.join(", ")}`);
     syncBase(targets);
-    // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 3개 섹션, 글자 보존 검사 통과분만).
-  const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "3"]);
-  if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
 
-  const build = runNode("scripts/build.mjs", ["--no-pdf"]);
+    const build = runNode("scripts/build.mjs", ["--no-pdf"]);
     if (!build.ok) {
       log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
       process.exit(1);
@@ -326,19 +335,19 @@ function main() {
     process.exit(1);
   }
 
-  syncBase(targets);
-
-  // ASCII 기호를 실제 조판 기호로 (-> →, ^2 ², >= ≥ …)
-  const symbols = run("python", ["-3", "scripts/typeset_symbols.py"]);
-  if (symbols.ok) log(symbols.out.split("\n").slice(-1).join(""));
-
-  // 평평한 불릿에서 소단원을 끌어올린다(글자 보존 검사를 통과한 파일만).
+  // ① 위계 점검 먼저 — 규칙 승격 → 기호 조판 → LLM 계층 정리
   const hierarchy = run("python", ["-3", "scripts/normalize_hierarchy.py"]);
   if (hierarchy.ok) log(hierarchy.out.split("\n").slice(-2).join(" "));
 
-  // 규칙으로 안 되는 계층 판단은 LLM 이 한다(회차당 3개 섹션, 글자 보존 검사 통과분만).
+  const symbols = run("python", ["-3", "scripts/typeset_symbols.py"]);
+  if (symbols.ok) log(symbols.out.split("\n").slice(-1).join(""));
+
   const hierarchyLlm = runNode("scripts/hierarchy_llm.mjs", ["--limit", "3"]);
   if (hierarchyLlm.out) log(hierarchyLlm.out.split("\n").slice(-3).join(" "));
+  hierarchyReport = (hierarchyLlm.out || "").split("\n").filter((line) => line.includes("✓")).length;
+
+  // ② 그다음 기록 병합
+  syncBase(targets);
 
   const build = runNode("scripts/build.mjs", ["--no-pdf"]);
   if (!build.ok) {
@@ -365,10 +374,20 @@ function main() {
 
   const push = run("git", ["push"]);
   log(push.ok ? "push 완료 → Action이 Pages에 배포" : `push 실패: ${push.out}`);
+  const mergedCount = (() => {
+    try {
+      return fs
+        .readdirSync(NOTES)
+        .filter((name) => String(readFrontMatter(path.join(NOTES, name, "entry.md")).merged).toLowerCase() === "true")
+        .length;
+    } catch {
+      return 0;
+    }
+  })();
   notify(
     push.ok
-      ? `fm_board_enhance 새벽 작업 완료 — 기록 ${targets ? targets.length : 0}건 병합, 사이트·PDF 갱신`
-      : `fm_board_enhance 새벽 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
+      ? `fm_board_enhance 04:00 작업 완료 — 위계 정리 ${hierarchyReport}건 · 기록 ${targets.length}건 병합(누적 ${mergedCount}) · 사이트·PDF 갱신`
+      : `fm_board_enhance 04:00 작업 실패 — push 거부: ${push.out.slice(0, 120)}`,
   );
   log("=== daily triage 끝 ===");
 }
