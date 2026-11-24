@@ -8,7 +8,7 @@ topics: 감염 심내막염
 
 Prosthetic valve에 발생하는 endocarditis (심장판막치환술 후 v/s stable하나 TTE에서 oscillating mass)
 
-- CoNS(Coag Negative Staph, S.epidermidis) > S.aureus
+- CoNS(Coag Negative Staph, S.epidermidis, m/c) > S.aureus(2nd common)
 
 - Tx: Vancomycin 30mg/kg/day 를 하루에 2번으로 분할 (+ 4세대 세파 cefepime 혹은 pseudomonas cover Pip/Taz)
 
