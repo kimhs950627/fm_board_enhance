@@ -102,6 +102,21 @@ function quote(value) {
 // base 는 docx 를 옮긴 '기본 교재'다. 오늘 다듬은 기록을 base 의 해당 소제목 아래에
 // 덧붙이게 하고, 기존 줄이 하나라도 지워지면 되돌린다(덧붙이기 전용).
 // 매일 다른 대단원 하나씩 — 아직 평평한 소단원을 계층 정리 우선순위로 넘긴다.
+// 되돌리기 전에 '무엇을 시도했는지' 를 남긴다 — 다음 회차 프롬프트를 고치는 근거.
+function dumpAttempt() {
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const patch = run("git", ["diff", "--", "base"]).out;
+    if (!patch) return;
+    fs.mkdirSync(path.join(ROOT, "reports"), { recursive: true });
+    const file = path.join(ROOT, "reports", `merge-attempt-${stamp}.patch`);
+    fs.writeFileSync(file, patch, "utf8");
+    log(`시도본 저장: reports/${path.basename(file)}`);
+  } catch {
+    /* 진단 저장 실패는 무시 */
+  }
+}
+
 function hierarchyFocus() {
   const audit = run("python", ["-3", "scripts/hierarchy_audit.py", "--print"]);
   if (!audit.ok) return ["# (점검 보고서를 만들지 못함)"];
@@ -196,6 +211,7 @@ function syncBase(targets) {
     if (!content.ok) {
       const bad = run("git", ["diff", "--name-only", "--", "base"]).out.split("\n").filter(Boolean);
       log(`내용 유실 감지 → 되돌림: ${bad.join(", ")}`);
+      dumpAttempt();
       run("git", ["checkout", "--", "base"]);
     } else {
       log(`base 병합: ${rows.length}개 파일 (내용 보존 확인)`);
@@ -215,7 +231,7 @@ function polishedUnmerged() {
     .sort();
 }
 
-function commitAndPush(message) {
+function commitAndPush(message, summary = {}) {
   run("git", ["add", "base", "notes"]);
   const staged = run("git", ["diff", "--cached", "--name-only"]);
   if (!staged.out) {
@@ -265,7 +281,7 @@ function main() {
       log(`빌드 실패 → 커밋하지 않고 중단:\n${build.out}`);
       process.exit(1);
     }
-    commitAndPush(`merge: ${targets.length} note(s) into base`);
+    commitAndPush(`merge: ${targets.length} note(s) into base`, { label: `기록 ${targets.length}건 병합` });
     return;
   }
 
