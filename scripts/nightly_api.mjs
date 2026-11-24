@@ -67,8 +67,10 @@ async function main() {
   hierarchy = node("scripts/hierarchy_api.mjs", ["--limit", HIERARCHY_LIMIT, "--parallel", "3"]);
   log(hierarchy.out.split("\n").slice(-6).join(" | "));
 
-  // ② 기록 병합
+  // ② 새 기록 다듬기(polished.md) → 병합
   if (process.env.FM_MERGE !== "0") {
+    const polish = node("scripts/polish_api.mjs");
+    log(polish.out.split("\n").slice(-6).join(" | "));
     merge = node("scripts/merge_api.mjs");
     log(merge.out.split("\n").slice(-6).join(" | "));
   }
