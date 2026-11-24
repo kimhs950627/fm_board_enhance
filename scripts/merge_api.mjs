@@ -166,7 +166,8 @@ async function mergeOne(id) {
 
   const range = sectionRange(text, title);
   const section = range.lines.slice(range.start, range.end).join("\n").trim();
-  const note = fs.readFileSync(path.join(NOTES, id, "polished.md"), "utf8");
+  // polished.md 의 front matter 는 보내지 않는다(섹션에 섞이면 목차 제목이 중복된다)
+  const note = frontMatter(path.join(NOTES, id, "polished.md")).body.trim();
 
   const answer = stripFence(await complete(promptFor(section, note), { maxTokens: 8000 }));
   if (!answer.startsWith("### ")) return { ok: false, reason: "형식 위반" };
