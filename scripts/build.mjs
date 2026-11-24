@@ -424,7 +424,7 @@ ${note.html}
           .map((group) => {
             const heading = group.topic ? `<h2 class="topic-title">${escapeHtml(group.topic)}</h2>` : "";
             const live = group.notes.filter((note) => !note.merged);
-            if (!live.length) return heading;
+            if (!live.length) return ""; // 병합된 기록만 있으면 제목도 남기지 않는다
             return `${heading}
 ${live.map(noteArticle).join("\n")}`;
           })
