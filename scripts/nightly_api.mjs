@@ -63,9 +63,13 @@ async function main() {
   let hierarchy = { out: "" };
   let merge = { out: "" };
 
-  // ① 위계 정리 먼저
-  hierarchy = node("scripts/hierarchy_api.mjs", ["--limit", HIERARCHY_LIMIT, "--parallel", "3"]);
-  log(hierarchy.out.split("\n").slice(-6).join(" | "));
+  // ① 위계 정리 — 지금은 얼려둔다(사용자가 대단원별로 직접 지시할 예정)
+  if (HIERARCHY_LIMIT !== "0") {
+    hierarchy = node("scripts/hierarchy_api.mjs", ["--limit", HIERARCHY_LIMIT, "--parallel", "3"]);
+    log(hierarchy.out.split("\n").slice(-6).join(" | "));
+  } else {
+    log("위계 정리 동결 (FM_HIERARCHY_LIMIT=0) → 병합만 수행");
+  }
 
   // ② 새 기록 다듬기(polished.md) → 병합
   if (process.env.FM_MERGE !== "0") {

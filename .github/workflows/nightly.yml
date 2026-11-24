@@ -41,6 +41,8 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           FM_MODEL: deepseek/deepseek-v4.1-flash
           FM_EFFORT: low
+          # 위계 정리는 사용자가 대단원별로 지시할 때만. 지금은 병합만.
+          FM_HIERARCHY_LIMIT: "0"
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
