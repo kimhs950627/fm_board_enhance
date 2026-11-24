@@ -2,6 +2,7 @@
 id: 99990000-120000-e2e
 title: E2E 테스트 — 급성 기관지염
 created: 2026-11-24T12:00:00
+merged: true
 division: 호흡기
 topics: 급성 기관지염
 ---
