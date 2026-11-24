@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""check_content.py — base 파일이 '글자를 잃지 않았는지' 검사한다.
+"""check_content.py — base 가 '다룬 내용'을 잃지 않았는지 검사한다.
 
-LLM 이 계층을 정리하거나 새 기록을 병합할 때, 문장을 새로 쓰거나 옮기는 것은 괜찮지만
-사실(수치·약물명·검사명)이 사라지면 안 된다. 이 스크립트는 git HEAD 판과 현재 파일의
-단어 묶음을 비교해 사라진 단어가 있으면 알려 준다.
+의미가 같으면 문장을 다듬거나 짧게 줄여도 된다. 다만 **주제 자체가 사라지는 것**은 막는다.
+그래서 글자 단위 비교 대신 다음 네 가지를 본다.
 
-  python3 scripts/check_content.py base/내분비.md [--quiet]
-  python3 scripts/check_content.py --changed           # git diff 로 바뀐 base 파일 전부
+  1) 수치·단위     126mg/dL, 4.5시간, 6.5% …
+  2) 영문 고유명   Metformin, SGLT2, eGFR, CHA₂DS₂-VASc …
+  3) 소단원 제목   '### X' 의 X 가 새 파일 어딘가에 남아 있는가
+  4) 분량          새 파일이 HEAD 판의 80% 이상인가
 
-종료 코드: 0 = 보존, 1 = 단어 유실(호출한 쪽에서 되돌릴 것)
+  python3 scripts/check_content.py base/내분비.md
+  python3 scripts/check_content.py --changed
+  exit 0 = 유지, 1 = 삭제 의심
 """
 
 from __future__ import annotations
@@ -16,22 +19,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-from collections import Counter
 
-# 계층 표식·불릿·강조는 단어가 아니므로 무시한다
-NOISE = re.compile(r"^(#{1,6}|\*\*|[-*]$)")
-
-
-def tokens(text: str) -> Counter:
-    words: list[str] = []
-    for line in text.split("\n"):
-        line = re.sub(r"^\s*(?:#{1,6}\s*|[-*]\s*|\d+\)\s*)", "", line)
-        line = line.replace("**", "").replace("`", "")
-        for word in line.split():
-            if NOISE.match(word):
-                continue
-            words.append(word)
-    return Counter(words)
+NUMBER = re.compile(r"\d+(?:[.,]\d+)?\s*(?:mg/dL|mg|mL|mEq/L|mmHg|%|시간|분|초|일|주|개월|년|세|도|g|kg|IU/L|U/L|ng/mL|pg/mL)?")
+LATIN = re.compile(r"[A-Za-z][A-Za-z0-9₂₃₄+\-]{1,}")
+TITLE = re.compile(r"^#{2,3}\s+(.+)$", re.M)
+STOP_LATIN = {"the", "and", "or", "vs", "with", "without", "type"}
 
 
 def head_text(path: str) -> str:
@@ -39,29 +31,48 @@ def head_text(path: str) -> str:
     return result.stdout if result.returncode == 0 else ""
 
 
+def entities(text: str) -> tuple[set[str], set[str]]:
+    numbers = {m.group(0).replace(" ", "") for m in NUMBER.finditer(text) if any(c.isdigit() for c in m.group(0))}
+    latin = {w for w in LATIN.findall(text) if w.lower() not in STOP_LATIN}
+    return numbers, latin
+
+
 def check(path: str, quiet: bool) -> bool:
     old = head_text(path)
     if not old:
         return True
     new = open(path, encoding="utf-8").read()
+
     for lineno, line in enumerate(new.split("\n"), 1):
         if "###" in line and not line.lstrip().startswith("#"):
             print(f"  ! {path}:{lineno}: 제목 표식이 본문에 섞임 → {line.strip()[:60]}")
             return False
-    lost = tokens(old) - tokens(new)
-    for marker in ("-", ">", "•", "·", "|", ":"):
-        lost.pop(marker, None)
-    # 제목으로 올리면 콜론이 사라진다(예: 'Sulfonylurea:' → '### Sulfonylurea') — 같은 어간이 있으면 통과
-    for token in list(lost):
-        stem = token.rstrip(":")
-        if stem != token and stem in tokens(new):
-            lost.pop(token, None)
-    if not lost:
-        return True
-    if not quiet:
-        items = ", ".join(f"{word}×{count}" if count > 1 else word for word, count in lost.most_common(12))
-        print(f"  ! {path}: 단어 유실 → {items}")
-    return False
+
+    old_nums, old_latin = entities(old)
+    new_nums, new_latin = entities(new)
+    lost_nums = sorted(old_nums - new_nums)
+    lost_latin = sorted(old_latin - new_latin)
+
+    lost_titles = []
+    for title in TITLE.findall(old):
+        key = re.sub(r"\s+", " ", title.strip())
+        if key and key not in new:
+            lost_titles.append(key)
+
+    ratio = len(new) / max(1, len(old))
+
+    if lost_nums or lost_latin or lost_titles or ratio < 0.8:
+        if not quiet:
+            if lost_nums:
+                print(f"  ! {path}: 수치 사라짐 → {', '.join(lost_nums[:8])}")
+            if lost_latin:
+                print(f"  ! {path}: 고유명 사라짐 → {', '.join(lost_latin[:8])}")
+            if lost_titles:
+                print(f"  ! {path}: 소단원 제목 사라짐 → {', '.join(lost_titles[:4])}")
+            if ratio < 0.8:
+                print(f"  ! {path}: 분량 {ratio:.0%} 로 줄어듦")
+        return False
+    return True
 
 
 def changed_files() -> list[str]:
@@ -70,12 +81,12 @@ def changed_files() -> list[str]:
 
 
 def main() -> int:
-# Windows 콘솔(cp949)에서도 한글·기호가 깨지지 않게
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:  # noqa: BLE001
         pass
+
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     quiet = "--quiet" in sys.argv
     paths = changed_files() if "--changed" in sys.argv else args
@@ -83,7 +94,7 @@ def main() -> int:
     for path in paths:
         if not check(path, quiet):
             ok = False
-    print("내용 보존 확인" + (" — 통과" if ok else " — 유실 있음"))
+    print("내용 보존 확인(수치·고유명·제목·분량)" + (" — 통과" if ok else " — 삭제 의심"))
     return 0 if ok else 1
 
 
