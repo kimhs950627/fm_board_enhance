@@ -1,0 +1,55 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 19 * * *" # 04:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pandoc and Korean fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pandoc fonts-noto-cjk fonts-noto-cjk-extra fonts-nanum
+          fc-cache -f
+          test "$(fc-list :lang=ko | wc -l)" -gt 0
+
+      - name: Nightly (hierarchy → merge → build → push)
+        env:
+          COMMANDCODE_API_KEY: ${{ secrets.COMMANDCODE_API_KEY }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          FM_MODEL: deepseek/deepseek-v4.1-flash
+          FM_EFFORT: low
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/nightly_api.mjs
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-log
+          path: logs/nightly-*.log
+          if-no-files-found: ignore
