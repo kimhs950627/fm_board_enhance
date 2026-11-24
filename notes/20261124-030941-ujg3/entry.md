@@ -2,6 +2,7 @@
 id: 20261124-030941-ujg3
 title: HF
 created: 2026-11-24T03:09:41
+merged: true
 division: 심혈관
 topics: 심부전
 ---

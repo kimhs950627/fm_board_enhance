@@ -2,6 +2,7 @@
 id: 20261124-022147-5yad
 title: 서맥부정맥
 created: 2026-11-24T02:21:47
+merged: true
 division: 심혈관
 topics: 서맥성 부정맥
 ---

@@ -2,6 +2,7 @@
 id: 20261124-021331-ajmw
 title: chest discomfort/pain
 created: 2026-11-24T02:13:31
+merged: true
 division: 심혈관
 topics: 심혈관계 증상 - 흉통 (Chest pain
 ---

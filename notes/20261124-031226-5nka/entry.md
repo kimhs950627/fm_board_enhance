@@ -2,6 +2,7 @@
 id: 20261124-031226-5nka
 title: 가역적 심근확장
 created: 2026-11-24T03:12:26
+merged: true
 division: 심혈관
 topics: 심근질환
 ---
