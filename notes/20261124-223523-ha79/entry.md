@@ -11,10 +11,21 @@ topics: 허혈성 심질환
 - 조종사나 운전사 등 다른 사람들의 안전을 책임지는 직업군은 Asymptomatic EKG abn.이 있을 때 Coronary CT 후 이상소견 있으면 CAG.
 
 - UA, NSTEMI, 특히 STEMI Dx : TTE + CAG.
-
+MI lab에서 CK-MB는 가장 빨리 (4~8시간) 올라가고 2~3일만에 정상화된다. 
 \
 
-- STEMI는 급성기 치료 MONAB(Morphine, O2, NTG, Aspirin, BB) + R(Reperfusion) / 장기치료(예후개선 목표)는 ABAS(Aspirin/clopidogrel, BB, ACEi/ARB, Statin)
+- STEMI 급성기 치료  : 더이상 일률적인 MONAB+R이 아니다
+Morphine : NTG에 반응없는 severe chest pain에 2~4g IV v/s monitoring
+O2 : Satu < 90%일 때 투여
+NTG : vasodilation
+Aspirin(DAPT Loading) : Aspirin 300mg PO chew(서방정 X, 일반약) + Ticagrelor(180mg PO) or Prasugrel(60mg), Clopidogrel 600mg는 대안
+위의 MONA에 anticoagulant, 고강도 statin + Reperfusion
+Anticoag: UFH 60U/kg 최대 4000Unit (PCI와 동시에 투여, 그 전에 투여하는 것은 근거가 쌓이는 중)
+Statin : Atorvastatin 40mg or Rosuvastatin 80mg PO loading
++ Reperfusion
+
+- STEMI 장기치료(예후개선 목표)는 ABAS(Aspirin/clopidogrel, BB, ACEi/ARB, Statin)
+DAPT dose는 aspirin 100mg qd, clopidogrel 75mg qd / prasugrel 10mg qd / ticagrelor 90mg bid을 최소 1년 유지, clopidogrel 단독은 guideline상 근거가 부족해 권장하지 않음. 1년 이후에는 DAPT scoring 후 보통 low dose ticagrelor를 유지치료로 선호
 
 - 이외의 협심증 : ABCN (Aspirin, BB, CCB, Nitrate) 특히 Nitrate, NTG는 치료와 예방 둘다 (Yama)
 
