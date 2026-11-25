@@ -33,4 +33,4 @@ DAPT dose는 aspirin 100mg qd, clopidogrel 75mg qd / prasugrel 10mg qd / ticagre
 
 - STEMI의 장기치료 외에서 ACEi는 controversial함; Aspirin임!!
 
-- Variant angina : 유발검사로 진단 (아세틸콜린, 에르고노빈, 과호흡), C/N으로 치료
+- Variant angina : 유발검사로 진단 (아세틸콜린, 에르고노빈, 과호흡), C/N으로 치료. 치료제 중 CCB가 우선(non-DHP와 DHP 효과 동등), Nitrate가 다음(CCB에 add on하는 개념)
