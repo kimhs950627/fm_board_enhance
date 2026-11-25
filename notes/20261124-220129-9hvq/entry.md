@@ -2,6 +2,7 @@
 id: 20261124-220129-9hvq
 title: 심내막염 특이케이스 및 예방적 항생제
 created: 2026-11-24T22:01:29
+merged: true
 division: 심혈관
 topics: 감염 심내막염
 ---

@@ -2,6 +2,7 @@
 id: 20261124-223523-ha79
 title: Ischemic heart disease 진단과 치료
 created: 2026-11-24T22:35:23
+merged: true
 division: 심혈관
 topics: 허혈성 심질환
 ---
