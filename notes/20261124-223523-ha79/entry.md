@@ -17,7 +17,7 @@ MI lab에서 CK-MB는 가장 빨리 (4~8시간) 올라가고 2~3일만에 정상
 - STEMI 급성기 치료  : 더이상 일률적인 MONAB+R이 아니다
 Morphine : NTG에 반응없는 severe chest pain에 2~4g IV v/s monitoring
 O2 : Satu < 90%일 때 투여
-NTG : vasodilation
+NTG : vasodilation. sBP<90, inferior MI, 2일 내 PDE5i 복용 시 금기
 Aspirin(DAPT Loading) : Aspirin 300mg PO chew(서방정 X, 일반약) + Ticagrelor(180mg PO) or Prasugrel(60mg), Clopidogrel 600mg는 대안
 위의 MONA에 anticoagulant, 고강도 statin + Reperfusion
 Anticoag: UFH 60U/kg 최대 4000Unit (PCI와 동시에 투여, 그 전에 투여하는 것은 근거가 쌓이는 중)
