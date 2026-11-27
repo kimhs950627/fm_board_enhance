@@ -56,29 +56,45 @@ function baseFile(division) {
 
 function sectionRange(text, title) {
   const lines = text.split("\n");
-  let start = lines.findIndex((line) => line.trim() === `### ${title}`);
-  if (start === -1) start = lines.findIndex((line) => line.trim().startsWith(`### ${title}`));
+  const head = /^(#{3,4}) (.+)$/;
+  let start = -1;
+  let level = 3;
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = head.exec(lines[i].trim());
+    if (!m) continue;
+    const name = m[2].trim();
+    if (name === title || name.startsWith(title)) {
+      start = i;
+      level = m[1].length;
+      break;
+    }
+  }
   if (start === -1) return null;
+  // 같은 레벨이나 더 위 제목이 나오면 그 소단원이 끝난다
   let end = start + 1;
-  while (end < lines.length && !lines[end].startsWith("### ")) end += 1;
-  return { lines, start, end };
+  while (end < lines.length) {
+    const m = head.exec(lines[end].trim());
+    if (m && m[1].length <= level) break;
+    end += 1;
+  }
+  return { lines, start, end, level };
 }
 
 function pickSection(text, topics) {
-  const titles = [...text.matchAll(/^### (.+)$/gm)].map((m) => m[1].trim());
+  const heads = [...text.matchAll(/^(#{3,4}) (.+)$/gm)].map((m) => ({ level: m[1].length, title: m[2].trim() }));
+  const titles = heads.map((h) => h.title);
   for (const topic of topics) {
-    const exact = titles.find((title) => title === topic);
-    if (exact) return exact;
-    const partial = titles.find((title) => title.includes(topic) || topic.includes(title));
-    if (partial) return partial;
-    // 괄호가 잘린 토픽("… (Chest pain")은 앞부분으로 다시 맞춘다
-    const stem = topic.replace(/\s*\(.*$/, "").trim();
-    if (stem) {
-      const fuzzy = titles.find((title) => title.startsWith(stem) || title.includes(stem));
-      if (fuzzy) return fuzzy;
+    const find = (predicate) => heads.find((h) => predicate(h.title));
+    let hit = find((title) => title === topic)
+      || find((title) => title.includes(topic) || topic.includes(title));
+    if (!hit) {
+      // 괄호가 잘린 토픽("… (Chest pain")은 앞부분으로 다시 맞춘다
+      const stem = topic.replace(/\s*\(.*$/, "").trim();
+      if (stem) hit = find((title) => title.startsWith(stem) || title.includes(stem));
     }
+    if (hit) return hit;
   }
-  return "";
+  return null;
 }
 
 function promptFor(section, note) {
@@ -164,16 +180,19 @@ async function mergeOne(id) {
     return { ok: true, reason: `'${wanted}' 소단원 새로 만듦` };
   }
 
-  const range = sectionRange(text, title);
+  const range = sectionRange(text, title.title);
+  const hashes = "#".repeat(range.level);
   const section = range.lines.slice(range.start, range.end).join("\n").trim();
-  // polished.md 의 front matter 는 보내지 않는다(섹션에 섞이면 목차 제목이 중복된다)
+  // polished.md 의 front matter 는 보내지 않는다(섹션에 제목이 중복된다)
   const note = frontMatter(path.join(NOTES, id, "polished.md")).body.trim();
 
   const answer = stripFence(await complete(promptFor(section, note), { maxTokens: 8000 }));
-  if (!answer.startsWith("### ")) return { ok: false, reason: "형식 위반" };
+  if (!/^#{3,4} \S/.test(answer)) return { ok: false, reason: "형식 위반" };
+  // 모델이 '### ' 로 돌려줘도 원래 레벨을 유지한다(계층이 무너지지 않게)
+  const fixed = `${hashes} ${answer.replace(/^#{3,4} /, "")}`;
 
   const before = text;
-  const updated = [...range.lines.slice(0, range.start), `${answer.trim()}\n`, ...range.lines.slice(range.end)].join("\n");
+  const updated = [...range.lines.slice(0, range.start), `${fixed.trim()}\n`, ...range.lines.slice(range.end)].join("\n");
   fs.writeFileSync(filePath, updated, "utf8");
 
   const check = py(["scripts/check_content.py", `base/${file}`, "--quiet"]);
@@ -183,7 +202,7 @@ async function mergeOne(id) {
   }
 
   markMerged(id);
-  return { ok: true, reason: `'${title}' 에 병합` };
+  return { ok: true, reason: `'${title.title}' 에 병합` };
 }
 
 async function main() {
