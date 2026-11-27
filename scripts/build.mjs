@@ -130,11 +130,51 @@ function loadBase() {
     });
 }
 
+// 입력 앱에서 `<table> … </table>` 를 글자로 적었을 때 표로 바꾼다.
+// 안쪽은 한 줄에 한 행, 칸은 `|` 또는 탭으로 나눈다. 첫 줄은 머리행.
+// 마크다운 표를 그대로 붙여넣어도 되도록 앞뒤 `|` 와 `---|---` 구분선은 버린다.
+// 이미 <tr>/<td> 가 들어 있으면 손대지 않는다(직접 쓴 HTML 표를 덮어쓰지 않게).
+function expandTableText(markdown) {
+  const expanded = markdown.replace(/<table\b[^>]*>([\s\S]*?)<\/table>/gi, (whole, inner) => {
+    if (/<t[rdh][\s>]/i.test(inner)) return whole;
+
+    const rows = inner
+      .split(/\r?\n/)
+      .map((line) => line.trim().replace(/\\+$/, "")) // 입력 앱이 줄바꿈을 `\` 로 남긴다
+      .map((line) => line.replace(/^\||\|$/g, "").trim())
+      .filter(Boolean)
+      .map((line) => line.split(/\t|(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").replace(/\\+$/, "").trim()))
+      // 사용자가 판독용 구분선(---|---)을 넣었으면 행이 아니라 장식이므로 버린다
+      .filter((cells) => !cells.every((cell) => /^:?-{2,}:?$/.test(cell)));
+    if (!rows.length) return whole;
+
+    // 칸 안의 `<`, `>` 는 글자로 남긴다(`<20°`, `>10mm`). 마크다운 강조는 pandoc 이 처리한다.
+    const cell = (tag, text) => `<${tag}>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</${tag}>`;
+    const row = (tag, cells) => `<tr>${cells.map((text) => cell(tag, text)).join("")}</tr>`;
+    const [head, ...body] = rows;
+    return [
+      "<table>",
+      `<thead>${row("th", head)}</thead>`,
+      body.length ? `<tbody>${body.map((cells) => row("td", cells)).join("")}</tbody>` : "",
+      "</table>",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+
+  // 입력 앱은 줄바꿈을 `\` 로 남긴다. 표 앞뒤의 `\` 는 표를 문단에 붙이는 잔여물이라 지우고
+  // 빈 줄로 떼어 블록으로 만든다.
+  return expanded
+    .replace(/[ \t]*\\+\r?\n(?=<table>)/g, "\n\n")
+    .replace(/(<\/table>)[ \t]*\\+\r?\n?/g, "$1\n\n");
+}
+
 function markdownToHtml(note) {
+  const source = expandTableText(fs.readFileSync(path.join(note.dir, note.file), "utf8"));
   const result = spawnSync(
     "pandoc",
     [
-      note.file,
+      "-",
       "--from",
       "markdown",
       "--to",
@@ -145,7 +185,7 @@ function markdownToHtml(note) {
       "--wrap=none",
       "--mathml",
     ],
-    { cwd: note.dir, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    { cwd: note.dir, encoding: "utf8", input: source, maxBuffer: 64 * 1024 * 1024 },
   );
 
   if (result.error) throw new Error(`pandoc 실행 실패: ${result.error.message}`);

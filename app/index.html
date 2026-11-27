@@ -600,6 +600,17 @@ function htmlToText(html) {
   if (!html) return "";
   const box = document.createElement("div");
   box.innerHTML = html;
+  // 붙여넣은 표는 칸 구분자를 살려 `<table> … </table>` 글자로 남긴다.
+  // 빌드(scripts/build.mjs)가 이 글자를 다시 표로 그린다.
+  box.querySelectorAll("table").forEach((table) => {
+    const lines = ["<table>"];
+    table.querySelectorAll("tr").forEach((tr) => {
+      const cells = Array.from(tr.querySelectorAll("th, td")).map((c) => c.textContent.replace(/\s+/g, " ").trim());
+      if (cells.some(Boolean)) lines.push(cells.join(" | "));
+    });
+    lines.push("</table>");
+    table.replaceWith(document.createTextNode("\n" + lines.join("\n") + "\n"));
+  });
   box.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
   box.querySelectorAll("p, div, li, tr, h1, h2, h3, h4").forEach((el) => el.append("\n"));
   return box.textContent.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();

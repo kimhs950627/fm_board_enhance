@@ -97,6 +97,9 @@ schtasks /Query /TN "fm_board_enhance daily" /V /FO LIST
   없으면 각 대단원의 **기타(직접 입력)** 으로 새 이름을 넣는다
 - `Ctrl+Enter` 저장
 - 저장 위치: `notes/<timestamp>/entry.md` (이미지는 같은 폴더에 `img-N.png`)
+- **표**: 본문에 `<table>` … `</table>` 을 글자로 적으면 빌드가 표로 그린다.
+  안쪽은 한 줄에 한 행, 칸은 `|` 또는 탭으로 나누고 **첫 줄이 머리행**이다. 웹페이지에서 표를 복사해
+  붙여넣어도 앱이 같은 형식으로 남긴다. 이미 `<tr>`/`<td>` 로 쓴 HTML 표는 손대지 않는다.
 
 ### 외부 접속
 
