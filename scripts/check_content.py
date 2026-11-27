@@ -37,7 +37,7 @@ def entities(text: str) -> tuple[set[str], set[str]]:
     return numbers, latin
 
 
-def check(path: str, quiet: bool) -> bool:
+def check(path: str, quiet: bool, ignore_titles: bool = False) -> bool:
     old = head_text(path)
     if not old:
         return True
@@ -54,10 +54,11 @@ def check(path: str, quiet: bool) -> bool:
     lost_latin = sorted(old_latin - new_latin)
 
     lost_titles = []
-    for title in TITLE.findall(old):
-        key = re.sub(r"\s+", " ", title.strip())
-        if key and key not in new:
-            lost_titles.append(key)
+    if not ignore_titles:
+        for title in TITLE.findall(old):
+            key = re.sub(r"\s+", " ", title.strip())
+            if key and key not in new:
+                lost_titles.append(key)
 
     ratio = len(new) / max(1, len(old))
 
@@ -89,10 +90,13 @@ def main() -> int:
 
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     quiet = "--quiet" in sys.argv
+    # --ignore-titles: 제목 레벨 변경·껍데기 제거를 하는 계층 작업용.
+    # 글자(수치·고유명·분량)는 그대로 검사하고 제목 존재 검사만 건너뛴다.
+    ignore_titles = "--ignore-titles" in sys.argv
     paths = changed_files() if "--changed" in sys.argv else args
     ok = True
     for path in paths:
-        if not check(path, quiet):
+        if not check(path, quiet, ignore_titles):
             ok = False
     print("내용 보존 확인(수치·고유명·제목·분량)" + (" — 통과" if ok else " — 삭제 의심"))
     return 0 if ok else 1
