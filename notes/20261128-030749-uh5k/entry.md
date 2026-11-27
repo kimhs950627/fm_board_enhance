@@ -1,11 +1,12 @@
 ---
 id: 20261128-030749-uh5k
-title: 과거에는 죽상경화증이 m/c 원인으로 간주 -> 최근에는 대동맥 medi
+title: 대동맥질환 내용추가
 created: 2026-11-28T03:07:49
 division: 심혈관
 topics: 대동맥 질환
 ---
 
+- AAA(복부대동맥류)
 과거에는 죽상경화증이 m/c 원인으로 간주 -> 최근에는 대동맥 media의 퇴행성변화 d/t 염증, ECF분해, ...
 
 most important reversible factor : 흡연, 그 외 당뇨
