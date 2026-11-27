@@ -98,12 +98,41 @@ function stripFence(text) {
   return text.replace(/^```(?:markdown)?\n/, "").replace(/\n```$/, "").trim();
 }
 
+/** 문장을 다듬어도 사라지면 안 되는 '내용어'만 남긴다. 목록 번호·흔한 접속사는 검사에서 뺀다. */
+const STOP_LATIN = new Set([
+  "the", "and", "or", "vs", "with", "without", "from", "to", "in", "of", "a", "an", "is", "are", "be",
+  "for", "by", "on", "as", "per", "via", "if", "then", "not", "no", "all", "was", "it", "this", "that",
+  "can", "may", "use", "used", "etc", "ie", "eg",
+]);
+/** 줄 맨 앞의 '1.' '2)' 같은 목록 번호는 내용이 아니라 서식이다. */
+function listOrdinals(text) {
+  const found = new Set();
+  for (const line of text.split("\n")) {
+    const match = /^\s*(\d+)[.)]\s/.exec(line);
+    if (match) found.add(match[1]);
+  }
+  return found;
+}
+
+/** `{.underline}` 같은 pandoc 서식 표식은 내용이 아니다 — 비교 전에 걷어낸다. */
+function unmarkup(text) {
+  return text.replace(/\{\s*\.[A-Za-z-]+\s*\}/g, "").replace(/\*\*/g, "");
+}
+
 /** 원문의 수치·영문 고유명이 결과에도 남아 있는지 확인한다(내용 삭제 방지). */
-function entityLoss(source, answer) {
+function entityLoss(sourceText, answer) {
+  const source = unmarkup(sourceText);
+  const ordinals = listOrdinals(source);
   const numbers = (text) => new Set((text.match(/\d+(?:[.,]\d+)?/g) || []));
   const latin = (text) => new Set((text.match(/[A-Za-z][A-Za-z0-9]{1,}/g) || []).map((w) => w.toLowerCase()));
-  const missingNumbers = [...numbers(source)].filter((token) => !numbers(answer).has(token));
-  const missingLatin = [...latin(source)].filter((token) => !latin(answer).has(token));
+  const answerNumbers = numbers(unmarkup(answer));
+  const answerLatin = latin(unmarkup(answer));
+  const missingNumbers = [...numbers(source)]
+    .filter((token) => !ordinals.has(token))
+    .filter((token) => !answerNumbers.has(token));
+  const missingLatin = [...latin(source)]
+    .filter((token) => !STOP_LATIN.has(token))
+    .filter((token) => !answerLatin.has(token));
   return { missingNumbers, missingLatin };
 }
 

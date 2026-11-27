@@ -2,6 +2,7 @@
 id: 20261125-233100-s8ae
 title: HTN
 created: 2026-11-25T23:31:00
+merged: true
 division: 심혈관
 topics: 고혈압
 ---
