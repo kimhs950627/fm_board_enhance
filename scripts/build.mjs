@@ -148,14 +148,30 @@ function expandTableText(markdown) {
       .filter((cells) => !cells.every((cell) => /^:?-{2,}:?$/.test(cell)));
     if (!rows.length) return whole;
 
+    // 칸 구분자 없이 자연어 줄만 적힌 표(야간 병합 전 초안)는 ` : ` 를 축으로 두 칸을 만든다.
+    // 그것도 안 되면 1열 표를 만들지 않고 불릿으로 둔다.
+    let shaped = rows.map((cells) => ({ cells, head: false }));
+    if (rows.every((cells) => cells.length === 1)) {
+      const plain = rows.map(([text]) => text.replace(/^[-*]\s*/, ""));
+      const halves = plain.map((text) => text.split(/\s+:\s+/));
+      if (halves.every((cells) => cells.length === 2)) {
+        shaped = halves.map((cells) => ({ cells, head: false })); // 전부 데이터 행
+      } else {
+        return plain.map((text) => `- ${text}`).join("\n");
+      }
+    } else {
+      shaped = rows.map((cells, index) => ({ cells, head: index === 0 }));
+    }
+
     // 칸 안의 `<`, `>` 는 글자로 남긴다(`<20°`, `>10mm`). 마크다운 강조는 pandoc 이 처리한다.
     const cell = (tag, text) => `<${tag}>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</${tag}>`;
     const row = (tag, cells) => `<tr>${cells.map((text) => cell(tag, text)).join("")}</tr>`;
-    const [head, ...body] = rows;
+    const heads = shaped.filter((r) => r.head);
+    const body = shaped.filter((r) => !r.head);
     return [
       "<table>",
-      `<thead>${row("th", head)}</thead>`,
-      body.length ? `<tbody>${body.map((cells) => row("td", cells)).join("")}</tbody>` : "",
+      heads.length ? `<thead>${heads.map((r) => row("th", r.cells)).join("")}</thead>` : "",
+      body.length ? `<tbody>${body.map((r) => row("td", r.cells)).join("")}</tbody>` : "",
       "</table>",
     ]
       .filter(Boolean)
