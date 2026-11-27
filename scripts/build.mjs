@@ -134,6 +134,38 @@ function loadBase() {
 // 안쪽은 한 줄에 한 행, 칸은 `|` 또는 탭으로 나눈다. 첫 줄은 머리행.
 // 마크다운 표를 그대로 붙여넣어도 되도록 앞뒤 `|` 와 `---|---` 구분선은 버린다.
 // 이미 <tr>/<td> 가 들어 있으면 손대지 않는다(직접 쓴 HTML 표를 덮어쓰지 않게).
+// 표가 아니라 자연어로 적힌 줄들에서 행·열 두 축을 찾아 격자로 만든다.
+//   "- 증상(-), ABI low : PAD 확진" 이 반복되면  증상 = 행, ABI = 열, 판단·처치 = 칸.
+// 앞에 적은 축을 행으로 세운다. 축이 둘이 아니거나 격자가 안 맞으면 null(폴백에 맡긴다).
+function gridFromLines(lines) {
+  const parts = lines.map((line) => line.split(/\s+:\s+/));
+  if (parts.length < 4 || !parts.every((part) => part.length === 2)) return null;
+
+  const lefts = parts.map((part) => part[0].split(/\s*,\s*/));
+  const width = lefts[0].length;
+  if (width < 2 || !lefts.every((cells) => cells.length === width)) return null;
+
+  const values = Array.from({ length: width }, (_, i) => [...new Set(lefts.map((cells) => cells[i]))]);
+  const varying = values.map((list, i) => ({ i, list })).filter((axis) => axis.list.length > 1);
+  if (varying.length !== 2) return null;
+
+  const [rowAxis, colAxis] = varying;
+  if (rowAxis.list.length * colAxis.list.length !== lines.length) return null;
+
+  const lookup = new Map();
+  lefts.forEach((cells, n) => lookup.set(`${cells[rowAxis.i]}\u0000${cells[colAxis.i]}`, parts[n][1]));
+
+  const head = [{ cells: ["", ...colAxis.list], head: true }];
+  const body = rowAxis.list.map((rowValue) => ({
+    cells: [
+      rowValue,
+      ...colAxis.list.map((colValue) => lookup.get(`${rowValue}\u0000${colValue}`) ?? ""),
+    ],
+    head: false,
+  }));
+  return [...head, ...body];
+}
+
 function expandTableText(markdown) {
   const expanded = markdown.replace(/<table\b[^>]*>([\s\S]*?)<\/table>/gi, (whole, inner) => {
     if (/<t[rdh][\s>]/i.test(inner)) return whole;
@@ -148,30 +180,33 @@ function expandTableText(markdown) {
       .filter((cells) => !cells.every((cell) => /^:?-{2,}:?$/.test(cell)));
     if (!rows.length) return whole;
 
-    // 칸 구분자 없이 자연어 줄만 적힌 표(야간 병합 전 초안)는 ` : ` 를 축으로 두 칸을 만든다.
-    // 그것도 안 되면 1열 표를 만들지 않고 불릿으로 둔다.
-    let shaped = rows.map((cells) => ({ cells, head: false }));
+    // 칸 구분자 없이 자연어 줄만 적힌 표(야간 병합 전 초안)는 두 축을 찾아 격자로 만든다.
+    // 축을 못 찾으면 `A : B` 두 칸, 그것도 안 되면 불릿으로 둔다.
+    let shaped = rows.map((cells, index) => ({ cells, head: index === 0 }));
     if (rows.every((cells) => cells.length === 1)) {
       const plain = rows.map(([text]) => text.replace(/^[-*]\s*/, ""));
-      const halves = plain.map((text) => text.split(/\s+:\s+/));
-      if (halves.every((cells) => cells.length === 2)) {
-        shaped = halves.map((cells) => ({ cells, head: false })); // 전부 데이터 행
-      } else {
-        return plain.map((text) => `- ${text}`).join("\n");
+      shaped = gridFromLines(plain);
+      if (!shaped) {
+        const halves = plain.map((text) => text.split(/\s+:\s+/));
+        shaped = halves.every((cells) => cells.length === 2)
+          ? halves.map((cells) => ({ cells, head: false }))
+          : null;
       }
-    } else {
-      shaped = rows.map((cells, index) => ({ cells, head: index === 0 }));
+      if (!shaped) return plain.map((text) => `- ${text}`).join("\n");
     }
 
     // 칸 안의 `<`, `>` 는 글자로 남긴다(`<20°`, `>10mm`). 마크다운 강조는 pandoc 이 처리한다.
     const cell = (tag, text) => `<${tag}>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</${tag}>`;
     const row = (tag, cells) => `<tr>${cells.map((text) => cell(tag, text)).join("")}</tr>`;
+    // 격자는 첫 칸이 행 이름이라 <th> 로 세운다
+    const bodyRow = (cells) =>
+      `<tr>${cells.map((text, index) => cell(index === 0 ? "th" : "td", text)).join("")}</tr>`;
     const heads = shaped.filter((r) => r.head);
     const body = shaped.filter((r) => !r.head);
     return [
       "<table>",
       heads.length ? `<thead>${heads.map((r) => row("th", r.cells)).join("")}</thead>` : "",
-      body.length ? `<tbody>${body.map((r) => row("td", r.cells)).join("")}</tbody>` : "",
+      body.length ? `<tbody>${body.map((r) => bodyRow(r.cells)).join("")}</tbody>` : "",
       "</table>",
     ]
       .filter(Boolean)
